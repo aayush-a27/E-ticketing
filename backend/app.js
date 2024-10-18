@@ -148,19 +148,37 @@ app.post('/api/signup', async (req, res) => {
 });
 
 app.post('/api/login', async (req, res) => {
-  console.log(req.body);
-  const { email, password } = req.body;
-  const user = await userModal.findOne({ email });
-  if (!user) {
-    return res.status(400).json({ message: 'User not found' });
-  }
-  const passwordCompared = await bcrypt.compare(password, user.password);
-  if (!passwordCompared) {
-    return res.status(400).json({ message: 'Email or password is wrong' });
-  }
-  const token = jwt.sign({ userId: user._id, email: user.email }, JWT_SECRET, { expiresIn: '1h' });
+  try {
+    console.log("Login request received");
 
-  res.status(200).json({ message: 'Login successful' , token});
+    const { email, password } = req.body;
+    const user = await userModal.findOne({ emailId: email }); 
+
+    if (!user) {
+      console.log("User not found");
+      return res.status(400).json({ message: 'User not found' });
+    }
+
+    console.log("User found, comparing password");
+
+    const passwordCompared = await bcrypt.compare(password, user.password);
+    if (!passwordCompared) {
+      console.log("Wrong password");
+      return res.status(400).json({ message: 'Email or password is wrong' });
+    }
+
+    const token = jwt.sign(
+      { userId: user._id, email: user.emailId }, 
+      JWT_SECRET, 
+      { expiresIn: '1h' }
+    );
+
+    console.log("Login success:", user.emailId);
+    return res.status(200).json({ message: 'Login successful', token });
+  } catch (error) {
+    console.error("Error during login:", error);
+    return res.status(500).json({ message: 'Server error, please try again' });
+  }
 });
 
 

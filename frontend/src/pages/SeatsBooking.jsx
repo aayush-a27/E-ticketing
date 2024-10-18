@@ -2,7 +2,6 @@ import { useLocation } from "react-router-dom";
 import TheaterSeats from "../components/TheaterSeats";
 import { useState, useEffect } from "react";
 import DialogBox from "../components/DialogBox";
-
 const SeatsBooking = () => {
   // State to control the visibility of the dialog box
   const [showDialog, setShowDialog] = useState(false);

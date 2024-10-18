@@ -10,7 +10,6 @@ const Moviedetails = () => {
     console.log(movie.title, releaseYear);
     navigate('/theater', { state: { title: movie.title, releaseDate: releaseYear } });
   };
-
   return (
     <div className="h-[90%] w-full px-28 py-10 relative overflow-hidden">
       <div className="circle1 bg-green-500 h-[100vh] w-[50vw] absolute -left-64 bottom-5 -top-64 -z-10 rounded-full"></div>
