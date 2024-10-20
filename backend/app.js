@@ -22,10 +22,27 @@ const apiKey = 'fa21ba67e8bbb1960e14f06e47248b9b';  // Replace with your actual 
 const baseURL = 'https://api.themoviedb.org/3';
 const SERPAPI_KEY = '041e0f378f0c8d8d780ee656f23409f67c504811e7c8075f5a24bd894199bc9e';
 
-app.get('/api/shows', async (req, res) => {
-  const today = new Date().toISOString().split('T')[0]; // Today's date
+const loggedInToken = (req, res, next) => {
+  const token = req.cookies.token;
+
+  if (!token) {
+    return res.status(401).send("You must be logged in first!");
+  }
+
+  jwt.verify(token, JWT_SECRET, (err, decoded) => {
+    if (err) {
+      return res.status(403).send("Invalid or expired token.");
+    }
+
+    req.user = decoded;  // Attach decoded user info to the request object
+    next();  // Proceed to the next middleware or route handler
+  });
+};
+
+app.get('/api/shows', loggedInToken, async (req, res) => {
+  const today = new Date().toISOString().split('T')[0];
   const lastMonth = new Date();
-  lastMonth.setMonth(lastMonth.getMonth() - 2);  // 1 month ago
+  lastMonth.setMonth(lastMonth.getMonth() - 2);
   const lastMonthDate = lastMonth.toISOString().split('T')[0];
 
   async function getUpcomingMovies() {
@@ -34,36 +51,36 @@ app.get('/api/shows', async (req, res) => {
         params: {
           api_key: apiKey,
           language: 'en-IN',
-          region: 'IN',  // Modify based on your region
-          sort_by: 'release_date.desc',  // Sort by most recent release
-          'release_date.gte': lastMonthDate,  // Movies released after this date
-          'release_date.lte': today,  // Movies released before today
+          region: 'IN',
+          sort_by: 'release_date.desc',
+          'release_date.gte': lastMonthDate,
+          'release_date.lte': today,
         },
       });
 
       const fetchEnglishMovies = axios.get('https://api.themoviedb.org/3/movie/now_playing', {
         params: {
           api_key: apiKey,
-          language: 'en-US',  // English movies
-          region: 'US',  // US region
+          language: 'en-US',
+          region: 'US',
           sort_by: 'release_date.desc',
           'release_date.gte': lastMonthDate,
           'release_date.lte': today,
-        }
+        },
       });
 
       const [hindiMoviesResponse, englishMoviesResponse] = await Promise.all([fetchHindiMovies, fetchEnglishMovies]);
-      
+
       const allMovies = [
         ...hindiMoviesResponse.data.results,
         ...englishMoviesResponse.data.results,
       ];
 
-      for (let movie of allMovies) {  // Use 'allMovies' instead of 'allmovies'
+      for (let movie of allMovies) {
         movie.cast = await getUpcomingMoviesCasts(movie.id);
       }
 
-      res.json(allMovies);  // Return the combined movie list
+      res.json(allMovies);
     } catch (error) {
       console.error('Error fetching upcoming movies:', error);
       res.status(500).send('Error fetching upcoming movies');
@@ -124,10 +141,6 @@ app.post('/api/theaterDetails', async (req, res) => {
 }
 });
 
-app.get('/api/theaters',async (req, res) => {
-  const response = await axios.get('https://serpapi.com/search.json?q=theaters&location=Ghaziabad,India&hl=en&gl=us');
-  
-})
 
 app.post('/api/signup', async (req, res) => {
   try{
@@ -149,38 +162,47 @@ app.post('/api/signup', async (req, res) => {
 
 app.post('/api/login', async (req, res) => {
   try {
-    console.log("Login request received");
-
     const { email, password } = req.body;
-    const user = await userModal.findOne({ emailId: email }); 
+    const user = await userModal.findOne({ emailId: email });
 
     if (!user) {
-      console.log("User not found");
       return res.status(400).json({ message: 'User not found' });
     }
 
-    console.log("User found, comparing password");
-
     const passwordCompared = await bcrypt.compare(password, user.password);
     if (!passwordCompared) {
-      console.log("Wrong password");
       return res.status(400).json({ message: 'Email or password is wrong' });
     }
 
     const token = jwt.sign(
-      { userId: user._id, email: user.emailId }, 
-      JWT_SECRET, 
+      { userId: user._id, email: user.emailId },
+      JWT_SECRET,
       { expiresIn: '1h' }
     );
 
-    console.log("Login success:", user.emailId);
-    return res.status(200).json({ message: 'Login successful', token });
+    // Send the token as an HttpOnly cookie
+    res.cookie('token', token, {
+      httpOnly: true, // Prevent access from JavaScript
+      secure: process.env.NODE_ENV === 'production', // Set to true in production (for HTTPS)
+      maxAge: 3600000, // Cookie expires in 1 hour
+      sameSite: 'Strict', // Prevent CSRF attacks
+    });
+
+    return res.status(200).json({ message: 'Login successful' });
   } catch (error) {
     console.error("Error during login:", error);
     return res.status(500).json({ message: 'Server error, please try again' });
   }
 });
 
+app.post('/api/seats', loggedInToken, async (req, res) => {
+  const userId = req.user.userId;  // Access userId from the decoded token
+  const { showId, selectedSeats } = req.body;
+
+  console.log({ userId, showId, selectedSeats });
+
+  // Proceed with seat booking logic using userId if needed
+});
 
 app.listen(port, () => {
   console.log(`Server running on port ${port}`);

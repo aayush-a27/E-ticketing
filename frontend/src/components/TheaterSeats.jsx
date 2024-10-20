@@ -1,6 +1,6 @@
 import { useState } from "react";
 
-const TheaterSeats = ({ seatSelected }) => {
+const TheaterSeats = ({ seatSelected, sendingSeats }) => {
   const seatsInRow = 20; // Default number of seats
   const seatsInRowM = 22; // Seats in row M
 
@@ -56,6 +56,9 @@ const TheaterSeats = ({ seatSelected }) => {
     // Update selected seats state
     setSelectedSeats(newSelectedSeats);
     console.log('Selected Seats:', newSelectedSeats);
+
+    // Send selected seats to the parent component
+    sendingSeats(newSelectedSeats);
   };
 
   return (
