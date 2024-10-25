@@ -34,7 +34,7 @@ const SeatsBooking = () => {
   };
 
   const handlePay = () => {
-    navigate("/checkOut", { state: { seatSelected } });
+    navigate("/checkOut", { state: { seatSelected, selectedTime } });
   };
 
   return (
