@@ -1,3 +1,60 @@
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
+
+/* Ensure the box has relative positioning */
+.box {
+  position: relative;
+  overflow: hidden; /* Prevents content from overflowing outside the box */
+  height: 250px; /* You can adjust the height as needed */
+}
+
+/* Ball styling */
+.bouncing-ball {
+  position: absolute;
+  z-index: -1;
+  top: 50%; /* Starts the ball at 50% from the top (middle of the box) */
+  left: 0;
+  width: 18vw; /* Fixed size for the ball */
+  height: 18vw;
+  background-color: green;
+  color: yellow;
+  border-radius: 50%;
+  animation: bounce 2s ease-in-out infinite, move 12s linear infinite; /* Increased duration of horizontal movement */
+}
+.text {
+  font-size: 2rem;
+  font-weight: bold;
+  color: black; /* Default text color */
+  position: relative;
+  z-index: 1;
+  mix-blend-mode:color-burn;
+   /* This changes the text color when the ball passes over it */
+}
+
+/* Bounce up and down */
+@keyframes bounce {
+  0%, 100% {
+    transform: translateY(0); /* No movement */
+  }
+  25% {
+    transform: translateY(-50px); /* Adjust the bounce height */
+  }
+  50% {
+    transform: translateY(50px); /* Adjust the bounce height */
+  }
+  100% {
+    transform: translateY(0px); /* Adjust the bounce height */
+  }
+}
+
+/* Move left to right within the box */
+@keyframes move {
+  0%, 100% {
+    left: 0;
+    top:0; /* Ball starts from the left */
+  }
+  50% {
+    left: calc(100% - 50px); /* Moves the ball to the right edge minus the ball's width */
+  }
+}
