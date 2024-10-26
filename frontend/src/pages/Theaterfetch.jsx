@@ -74,7 +74,7 @@ const Theaterfetch = () => {
   // Handle click on the entire <li> element
   const handleTheaterClick = (timingsArray) => {
     // Navigate to the SeatsBooking component and pass the timings array
-    navigate("/seatsBooking", { state: { timings: timingsArray } });
+    navigate("/seatsBooking", { state: { timings: timingsArray,title } });
   };
 
   return (

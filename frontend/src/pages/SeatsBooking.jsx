@@ -12,6 +12,7 @@ const SeatsBooking = () => {
 
   const location = useLocation();
   const timings = location.state?.timings || [];
+  const {title} = location.state
 
   useEffect(() => {
     if (timings.length > 0) {
@@ -34,7 +35,7 @@ const SeatsBooking = () => {
   };
 
   const handlePay = () => {
-    navigate("/checkOut", { state: { seatSelected, selectedTime } });
+    navigate("/checkOut", { state: { seatSelected, selectedTime, title} });
   };
 
   return (

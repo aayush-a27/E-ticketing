@@ -39,7 +39,7 @@ const loggedInToken = (req, res, next) => {
   });
 };
 
-app.get('/api/shows', loggedInToken, async (req, res) => {
+app.get('/api/shows', async (req, res) => {
   const today = new Date().toISOString().split('T')[0];
   const lastMonth = new Date();
   lastMonth.setMonth(lastMonth.getMonth() - 2);
