@@ -72,9 +72,9 @@ const Theaterfetch = () => {
   };
 
   // Handle click on the entire <li> element
-  const handleTheaterClick = (timingsArray) => {
+  const handleTheaterClick = (timingsArray, theaterName) => {
     // Navigate to the SeatsBooking component and pass the timings array
-    navigate("/seatsBooking", { state: { timings: timingsArray,title } });
+    navigate("/seatsBooking", { state: { timings: timingsArray,title, theaterName } });
   };
 
   return (
@@ -104,7 +104,7 @@ const Theaterfetch = () => {
                         className="border-t-2 items-center w-full justify-start flex gap-4 hover:bg-green-300 py-4 px-8 border-black border-separate"
                         onClick={() =>
                           handleTheaterClick(
-                            theater.showing.flatMap((show) => show.time)
+                            theater.showing.flatMap((show) => show.time), theater.name
                           )
                         }
                       >

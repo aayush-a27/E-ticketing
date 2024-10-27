@@ -5,8 +5,7 @@
 /* Ensure the box has relative positioning */
 .box {
   position: relative;
-  overflow: hidden; /* Prevents content from overflowing outside the box */
-  height: 250px; /* You can adjust the height as needed */
+  overflow: hidden; /* Prevents content from overflowing outside the box */ /* You can adjust the height as needed */
 }
 
 /* Ball styling */
