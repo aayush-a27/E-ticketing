@@ -195,14 +195,16 @@ app.post('/api/login', async (req, res) => {
   }
 });
 
-app.post('/api/seats', loggedInToken, async (req, res) => {
-  const userId = req.user.userId;  // Access userId from the decoded token
-  const { showId, selectedSeats } = req.body;
-
-  console.log({ userId, showId, selectedSeats });
-
-  // Proceed with seat booking logic using userId if needed
+app.post('/api/checkOut', loggedInToken, async (req, res) => {
+  try {
+    const { seatSelected } = req.body;
+    // Mock confirmation message for testing
+    res.status(200).json({ message: "Checkout route is working and protected!", seatSelected });
+  } catch (error) {
+    res.status(500).json({ error: "Failed to access checkout route" });
+  }
 });
+
 
 app.listen(port, () => {
   console.log(`Server running on port ${port}`);

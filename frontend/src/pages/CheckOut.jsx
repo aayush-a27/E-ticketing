@@ -1,10 +1,21 @@
 import { useLocation } from "react-router-dom";
 import { TiTick } from "react-icons/ti";
+import axios from "axios";
 
 const CheckOut = () => {
   const location = useLocation();
   const { seatSelected, selectedTime, title, theaterName } = location.state;
-  const payment = ()=>{}
+  const payment = async () => {
+    try {
+      const response = await axios.post("/api/checkOut", { seatSelected });
+      if (response.data.message) {
+        alert(response.data.message); // Should display "Checkout route is working and protected!"
+      }
+    } catch (error) {
+      console.error("Error:", error);
+    }
+  };
+  
   return (
     <div   className="flex items-center justify-center  flex-col gap-44">
       <div className="box hover:shadow-xl hover:shadow-green-500/50  border-2 border-black rounded-2xl  mt-10 ml-32 mr-32 pt-10 pl-32 pr-32 gap-10 flex flex-col items-start justify-center relative">
@@ -75,7 +86,8 @@ const CheckOut = () => {
           </div>
         </div>
       </div>
-      <button className="border-2 hover:shadow-xl hover:shadow-green-500/50 hover:bg-green-500 border-black rounded-3xl px-4 py-2">Payable amount 250</button>
+      <button className="border-2 hover:shadow-xl hover:shadow-green-500/50 hover:bg-green-500 border-black rounded-3xl px-4 py-2"
+        onClick={payment}>Payable amount 250</button>
     </div>
   );
 };
