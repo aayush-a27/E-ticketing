@@ -5,6 +5,7 @@ import Book from '../pages/Book';
 import Moviedetails from '../pages/Moviedetails';
 import Theaterfetch from '../pages/Theaterfetch';
 import SeatsBooking from '../pages/SeatsBooking';
+import LoginPage from '../pages/LoginPage';
 import CheckOut from '../pages/CheckOut';
 
 const Routing = () => {
@@ -12,6 +13,7 @@ const Routing = () => {
     <Routes>
       <Route path="/" element={<Home />} />
       <Route path="/Bookings" element={<Bookings />} />
+      <Route path="/Login" element={<LoginPage />} />
       <Route path="/movie/:id" element={<Moviedetails />} />
       <Route path="/Book" element={<Book />}/>
       <Route path="/theater" element={<Theaterfetch/>} />

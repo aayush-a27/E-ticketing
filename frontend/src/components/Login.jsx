@@ -1,10 +1,12 @@
 import axios from "axios";
 import { useState } from "react";
+import { useNavigate } from "react-router-dom";
 
 const Login = () => {
+  const lastVisited = localStorage.getItem('lastVisited');
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
-
+  const navigate = useNavigate();
   const handleSubmit = async (e) => {
     e.preventDefault();
     try {
@@ -14,6 +16,12 @@ const Login = () => {
         { withCredentials: true } // This enables sending and receiving cookies
       );
       response ? console.log('Login successful') : "";
+      if (lastVisited) {
+        navigate(lastVisited); // Redirect to last visited page
+        localStorage.removeItem('lastVisited'); // Clear the path from storage
+      } else {
+        navigate('/'); // Default redirect if no last visited path
+      }
     } catch (error) {
       console.error('Login failed', error.response?.data?.message || error.message);
     }

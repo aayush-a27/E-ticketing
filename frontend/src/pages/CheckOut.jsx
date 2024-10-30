@@ -1,18 +1,21 @@
-import { useLocation } from "react-router-dom";
+import { useLocation, useNavigate } from "react-router-dom";
 import { TiTick } from "react-icons/ti";
 import axios from "axios";
 
+
 const CheckOut = () => {
+  const navigate = useNavigate();
   const location = useLocation();
   const { seatSelected, selectedTime, title, theaterName } = location.state;
   const payment = async () => {
     try {
-      const response = await axios.post("/api/checkOut", { seatSelected });
+      const response = await axios.post("/api/checkOut", { seatSelected, selectedTime, title, theaterName });
       if (response.data.message) {
         alert(response.data.message); // Should display "Checkout route is working and protected!"
       }
     } catch (error) {
-      console.error("Error:", error);
+      localStorage.setItem('lastVisited', '/checkOut');
+      error.status == 401 ? navigate('/Login') : ""
     }
   };
   
