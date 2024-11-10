@@ -6,8 +6,9 @@ const bcrypt = require('bcrypt');
 const jwt = require('jsonwebtoken');
 require('dotenv').config();
 const userModal = require('./models/UserData');
+const Booking = require('./models/BookingData');
 const app = express();
-
+const connectDB = require('./db');
 const port = process.env.PORT || 3000;
 const JWT_SECRET = process.env.JWT_SECRET;
 
@@ -34,11 +35,12 @@ const loggedInToken = (req, res, next) => {
       return res.status(403).send("Invalid or expired token.");
     }
 
-    req.user = decoded;  // Attach decoded user info to the request object
+    req.user = decoded;
+    console.log(req.user,"here is user")  // Attach decoded user info to the request object
     next();  // Proceed to the next middleware or route handler
   });
 };
-
+connectDB();
 app.get('/api/shows', async (req, res) => {
   const today = new Date().toISOString().split('T')[0];
   const lastMonth = new Date();
@@ -223,6 +225,68 @@ app.post('/api/checkOut', loggedInToken, async (req, res) => {
     res.status(500).json({ error: "Failed to access checkout route" });
   }
 });
+// In your backend
+const BookingData = require('./models/BookingData');  // Make sure to import your model
+
+// Booking Route
+app.post('/api/bookTicket', loggedInToken, async (req, res) => {
+  const { seatSelected, selectedTime, title, theaterName } = req.body;
+  const userId = req.user.userId;  // Get userId from the JWT token attached by the loggedInToken middleware
+
+  try {
+    const newBooking = new Booking({
+      userId,              // Associate the booking with the user
+      movieTitle: title,
+      seatSelected,
+      showTime: selectedTime,
+      theaterName,
+    });
+    console.log(newBooking)
+    await newBooking.save();
+    res.status(200).json({ message: 'Booking confirmed' });
+  } catch (error) {
+    console.error("Error during booking:", error);
+    res.status(500).json({ message: 'Failed to process booking' });
+  }
+});
+
+// In your backend (Express)
+app.get('/api/getBookingHistory', loggedInToken, async (req, res) => {
+  try {
+    // Get the userId from the decoded token (req.user contains user info from the loggedInToken middleware)
+    const userId = req.user.userId;
+
+    // Fetch the bookings associated with the user from the BookingData model
+    const bookings = await BookingData.find({ userId }).sort({ date: -1 }); // Sort by date in descending order
+
+    // Send the bookings as a response
+    return res.status(200).json(bookings);
+  } catch (error) {
+    console.error('Error fetching booking history:', error);
+    return res.status(500).json({ message: 'Server error' });
+  }
+});
+
+app.delete('/api/deleteBooking/:bookingId', async (req, res) => {
+  try {
+    const { bookingId } = req.params;
+    console.log(`Attempting to delete booking with ID: ${bookingId}`);
+
+    const deletedBooking = await BookingData.findByIdAndDelete(bookingId);
+
+    if (!deletedBooking) {
+      return res.status(404).json({ message: 'Booking not found' });
+    }
+
+    console.log(`Deleted booking: ${deletedBooking}`);
+    res.status(200).json({ message: 'Booking history deleted successfully' });
+  } catch (error) {
+    console.error("Error deleting booking:", error);
+    res.status(500).json({ message: 'Server error' });
+  }
+});
+
+
 
 
 app.listen(port, () => {

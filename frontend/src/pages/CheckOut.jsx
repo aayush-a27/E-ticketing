@@ -12,6 +12,12 @@ const CheckOut = () => {
       const response = await axios.post("/api/checkOut", { seatSelected, selectedTime, title, theaterName });
       if (response.data.message) {
         alert(response.data.message);
+        await axios.post("/api/bookTicket", {
+          seatSelected, 
+          selectedTime, 
+          title, 
+          theaterName,
+        });
       }
     } catch (error) {
       localStorage.setItem('lastVisited', '/checkOut');
