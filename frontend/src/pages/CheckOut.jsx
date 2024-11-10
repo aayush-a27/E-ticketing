@@ -11,13 +11,18 @@ const CheckOut = () => {
     try {
       const response = await axios.post("/api/checkOut", { seatSelected, selectedTime, title, theaterName });
       if (response.data.message) {
-        alert(response.data.message); // Should display "Checkout route is working and protected!"
+        alert(response.data.message);
       }
     } catch (error) {
       localStorage.setItem('lastVisited', '/checkOut');
-      error.status == 401 ? navigate('/Login') : ""
+      localStorage.setItem('seatSelected', JSON.stringify(seatSelected));  // Store the state
+      localStorage.setItem('selectedTime', selectedTime);  // Store the selected time
+      localStorage.setItem('title', title);  // Store the title
+      localStorage.setItem('theaterName', theaterName);  // Store the theater name
+      error.status === 401 ? navigate('/Login') : "";
     }
   };
+  
   
   return (
     <div   className="flex items-center justify-center  flex-col gap-44">

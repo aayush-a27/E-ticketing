@@ -3,7 +3,6 @@ import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 
 const Login = () => {
-  const lastVisited = localStorage.getItem('lastVisited');
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const navigate = useNavigate();
@@ -16,9 +15,25 @@ const Login = () => {
         { withCredentials: true } // This enables sending and receiving cookies
       );
       response ? console.log('Login successful') : "";
+  
+      const lastVisited = localStorage.getItem('lastVisited');
       if (lastVisited) {
-        navigate(lastVisited); // Redirect to last visited page
-        localStorage.removeItem('lastVisited'); // Clear the path from storage
+        const seatSelected = JSON.parse(localStorage.getItem('seatSelected'));
+        const selectedTime = localStorage.getItem('selectedTime');
+        const title = localStorage.getItem('title');
+        const theaterName = localStorage.getItem('theaterName');
+  
+        // Navigate to the checkout route with the saved data
+        navigate(lastVisited, {
+          state: { seatSelected, selectedTime, title, theaterName },
+        });
+  
+        // Clear the stored data
+        localStorage.removeItem('lastVisited');
+        localStorage.removeItem('seatSelected');
+        localStorage.removeItem('selectedTime');
+        localStorage.removeItem('title');
+        localStorage.removeItem('theaterName');
       } else {
         navigate('/'); // Default redirect if no last visited path
       }
@@ -26,6 +41,7 @@ const Login = () => {
       console.error('Login failed', error.response?.data?.message || error.message);
     }
   };
+  
 
   return (
     <div className="w-full">
