@@ -33,10 +33,10 @@ const Theaterfetch = () => {
 
   const sendLocation = async (lat, lon) => {
     try {
+      console.log(lat,  lon, title, releaseDate);
       const response = await axios.post(
         "/api/location",
-        { lat: lat, lon: lon, title: title, releaseDate: releaseDate },
-        { withCredentials: true }
+        { lat: lat, lon: lon, title, releaseDate },
       );
       fetchTheater(response.data.city, response.data.country);
     } catch {

@@ -104,20 +104,39 @@ app.get('/api/shows', async (req, res) => {
   getUpcomingMovies();
 });
 
-app.post('/api/location',async (req, res)=>{
-  const {lat, lon, title, releaseDate} = req.body;
-  console.log({lat: lat, lon: lon, title: title, releaseDate: releaseDate});
-  try{
-    const response = await axios.get(`https://nominatim.openstreetmap.org/reverse?lat=${lat}&lon=${lon}&format=json`)
-    const city = response.data.address.city;
-    const country = response.data.address.country;
-    console.log(city, country);
-    res.send({city, country});
-  } catch (err){
-    console.error('Error fetching location data:', error);
+app.post('/api/location', async (req, res) => {
+  console.log("this route working");
+
+  const { lat, lon, title, releaseDate } = req.body;
+  console.log({ lat, lon, title, releaseDate });
+
+  if (!lat || !lon) {
+    console.error('Latitude or Longitude missing');
+    return res.status(400).send({ error: 'Latitude and Longitude are required' });
   }
-    
+
+  try {
+    const response = await axios.get(`https://nominatim.openstreetmap.org/reverse?lat=${lat}&lon=${lon}&format=json`, {
+      headers: {
+        'User-Agent': 'Movie Mania/1.0 (aayushbhadula567@gmail.com)', // Add your app name and contact email
+      }
+    });
+
+    if (response.data && response.data.address) {
+      const city = response.data.address.city;
+      const country = response.data.address.country;
+      console.log(city, country);
+      return res.send({ city, country });
+    } else {
+      console.error('No address data found');
+      return res.status(500).send({ error: 'Address not found' });
+    }
+  } catch (err) {
+    console.error('Error fetching location data:', err);
+    return res.status(500).send({ error: 'Error fetching location data' });
+  }
 });
+
 app.post('/api/theaterDetails', async (req, res) => {
   const {city, country, movieTitle, releaseDate} = req.body;
   console.log({city: city, country: country, movieTitle: movieTitle, releaseDate: releaseDate});
