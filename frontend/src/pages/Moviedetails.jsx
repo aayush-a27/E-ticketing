@@ -8,7 +8,7 @@ const Moviedetails = () => {
   const handleButtonClick = () => {
     const releaseYear = movie.release_date.split('-')[0];  // Extract the year
     console.log(movie.title, releaseYear);
-    navigate('/theater', { state: { title: movie.title, releaseDate: releaseYear } });
+    navigate('/theater', { state: { movieId : movie.id ,title: movie.title, releaseDate: releaseYear } });
   };
   return (
     <div className="h-[90%] w-full px-28 py-10 relative overflow-hidden">

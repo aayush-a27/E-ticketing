@@ -12,7 +12,7 @@ const SeatsBooking = () => {
 
   const location = useLocation();
   const timings = location.state?.timings || [];
-  const {title, theaterName} = location.state
+  const {title, theaterName, movieId} = location.state
 
   useEffect(() => {
     if (timings.length > 0) {
@@ -35,7 +35,7 @@ const SeatsBooking = () => {
   };
 
   const handlePay = () => {
-    navigate("/checkOut", { state: { seatSelected, selectedTime, title, theaterName} });
+    navigate("/checkOut", { state: { movieId, seatSelected, selectedTime, title, theaterName} });
   };
 
   return (
@@ -57,7 +57,7 @@ const SeatsBooking = () => {
         </ul>
         <div className="w-full mt-10 -ml-10 relative flex items-center gap-48 justify-center">
           {/* Pass the selected timing and the seat selection handler to the TheaterSeats component */}
-          <TheaterSeats selectedTime={selectedTime} seatSelected={seatSelected} sendingSeats={handleSeatSelect} />
+          <TheaterSeats selectedTime={selectedTime} seatSelected={seatSelected} sendingSeats={handleSeatSelect} movieId = {movieId}/>
           <div className="border-2 bg-green-500 w-48 py-2 bottom-[70%] hover:border-black hover:shadow-xl hover:shadow-green-700/50 cursor-pointer right-[10%] absolute flex items-center justify-center rounded-full"
             onClick={handlePay}
           >select</div>

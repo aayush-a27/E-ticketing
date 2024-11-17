@@ -3,6 +3,7 @@ const mongoose = require('mongoose');
 
 const bookingSchema = mongoose.Schema({
     userId: { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true },
+    movieId: {type: String, required: true},
     movieTitle: { type: String, required: true },
     seatSelected: [
       {

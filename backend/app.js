@@ -8,6 +8,8 @@ require('dotenv').config();
 const userModal = require('./models/UserData');
 const Booking = require('./models/BookingData');
 const app = express();
+const http = require('http');
+const { Server } = require('socket.io');
 const connectDB = require('./db');
 const port = process.env.PORT || 3000;
 const JWT_SECRET = process.env.JWT_SECRET;
@@ -41,6 +43,33 @@ const loggedInToken = (req, res, next) => {
   });
 };
 connectDB();
+
+
+const server = http.createServer(app);
+const io = new Server(server, {
+  cors: {
+    origin: 'http://localhost:5173', // React app ka URL
+    methods: ['GET', 'POST'],
+  },
+});
+io.on('connection', (socket) => {
+  console.log('User connected:', socket.id);
+
+  socket.on('seat-selected', ({ selectedSeats, userId, movieId }) => {
+    console.log(`User ${userId} selected seats:`, selectedSeats);
+
+    // Update seat status in database (dummy logic yaha pe hai)
+    selectedSeats.forEach((seat) => {
+      seat.isBooked = true; // Update seat status
+    });
+
+    // Broadcast updated seat status to all clients
+    selectedSeats.forEach((seat) => {
+      io.emit('seat-booked', seat);
+    });
+  });
+});
+
 app.get('/api/shows', async (req, res) => {
   const today = new Date().toISOString().split('T')[0];
   const lastMonth = new Date();
@@ -230,12 +259,13 @@ const BookingData = require('./models/BookingData');  // Make sure to import you
 
 // Booking Route
 app.post('/api/bookTicket', loggedInToken, async (req, res) => {
-  const { seatSelected, selectedTime, title, theaterName } = req.body;
+  const { seatSelected, selectedTime, title, theaterName, movieId } = req.body;
   const userId = req.user.userId;  // Get userId from the JWT token attached by the loggedInToken middleware
 
   try {
     const newBooking = new Booking({
-      userId,              // Associate the booking with the user
+      userId,
+      movieId,              // Associate the booking with the user
       movieTitle: title,
       seatSelected,
       showTime: selectedTime,
@@ -286,7 +316,38 @@ app.delete('/api/deleteBooking/:bookingId', async (req, res) => {
   }
 });
 
+app.post('/api/userAndMovie', loggedInToken, async (req, res) => {
+  try {
+    const userId = req.user.userId;
 
+    // Frontend se query params me movie ID expect kar rahe hain
+    const movieId = req.query.movieId;
+
+    if (!movieId) {
+      return res.status(400).json({ message: 'Movie ID is required.' });
+    }
+
+    // Database se user details aur movie details fetch karo
+    const userData = await userModal.findOne({ userId });
+    const movieData = await Booking.findOne({ movieId: movieId });
+
+    if (!userData || !movieData) {
+      return res.status(404).json({ message: 'User or Movie not found.' });
+    }
+
+    // Response me user aur movie data send karo
+    res.json({
+      userId,
+      userName: userData.name,
+      movieId: movieData.movieId,
+      showTime: movieData.showTime,
+      seats: movieData.seats, // Seat details bhi bhej rahe hain
+    });
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ message: 'Internal Server Error' });
+  }
+});
 
 
 app.listen(port, () => {

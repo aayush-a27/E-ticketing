@@ -2,17 +2,17 @@ import { useLocation, useNavigate } from "react-router-dom";
 import { TiTick } from "react-icons/ti";
 import axios from "axios";
 
-
 const CheckOut = () => {
   const navigate = useNavigate();
   const location = useLocation();
-  const { seatSelected, selectedTime, title, theaterName } = location.state;
+  const { seatSelected, selectedTime, title, theaterName, movieId } = location.state;
   const payment = async () => {
     try {
       const response = await axios.post("/api/checkOut", { seatSelected, selectedTime, title, theaterName });
       if (response.data.message) {
         alert(response.data.message);
         await axios.post("/api/bookTicket", {
+          movieId,
           seatSelected, 
           selectedTime, 
           title, 

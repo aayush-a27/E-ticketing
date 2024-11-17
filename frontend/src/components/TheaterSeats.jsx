@@ -1,6 +1,8 @@
-import { useState } from "react";
-
-const TheaterSeats = ({ seatSelected, sendingSeats }) => {
+import axios from "axios";
+import { useEffect, useState } from "react";
+import io from 'socket.io-client';
+const socket = io('http://localhost:3000');
+const TheaterSeats = ({ seatSelected, sendingSeats,  movieId }) => {
   const seatsInRow = 20; // Default number of seats
   const seatsInRowM = 22; // Seats in row M
 
@@ -26,41 +28,62 @@ const TheaterSeats = ({ seatSelected, sendingSeats }) => {
 
   const handleSeatClick = (row, seat) => {
     const totalSeats = row === 'M' ? seatsInRowM : seatsInRow;
-
-    // Clear previous selections
     let newSelectedSeats = [];
-
-    // If seat is at the end of the row, select previous seats
+  
     if (seat >= totalSeats - seatSelected + 1) {
-      // Select previous seats
       for (let i = 0; i < seatSelected; i++) {
-        const prevSeatIndex = seat - i; // Previous seat index
-
-        // Check if the previous seat index is valid
+        const prevSeatIndex = seat - i;
         if (prevSeatIndex >= 1) {
-          newSelectedSeats.push({ row, seat: prevSeatIndex }); // Add to new selected seats if valid
+          newSelectedSeats.push({ row, seat: prevSeatIndex });
         }
       }
     } else {
-      // Select next seats
       for (let i = 0; i < seatSelected; i++) {
-        const nextSeatIndex = seat + i; // Current seat index plus offset
-
-        // Check if the next seat index is valid
+        const nextSeatIndex = seat + i;
         if (nextSeatIndex <= totalSeats) {
-          newSelectedSeats.push({ row, seat: nextSeatIndex }); // Add to new selected seats if valid
+          newSelectedSeats.push({ row, seat: nextSeatIndex });
         }
       }
     }
-
-    // Update selected seats state
+  
     setSelectedSeats(newSelectedSeats);
-    console.log('Selected Seats:', newSelectedSeats);
-
-    // Send selected seats to the parent component
     sendingSeats(newSelectedSeats);
-  };
+    sendMovieDataToBackend(newSelectedSeats);
+    // Emit the event to the backend
 
+  };
+  const sendMovieDataToBackend = async (newSelectedSeats) => {
+    try {
+      const response = await axios.post('/api/userAndMovie', {
+        movieId
+      });
+      socket.emit('seat-selected', {
+        selectedSeats: newSelectedSeats,
+        userId: response.data.userId, // Replace with actual user ID
+        movieId, // Replace with actual movie ID
+      });
+      console.log("Data sent to backend:", response.data);
+    } catch (error) {
+      console.error("Error sending data to backend:", error);
+    }
+  };
+  useEffect(() => {
+    // Listen for seat booking updates
+    socket.on('seat-booked', (updatedSeat) => {
+      setSelectedSeats((prevSeats) =>
+        prevSeats.map((seat) =>
+          seat.row === updatedSeat.row && seat.seat === updatedSeat.seat
+            ? { ...seat, isBooked: true }
+            : seat
+        )
+      );
+    });
+  
+    return () => {
+      socket.off('seat-booked');
+    };
+  }, []);
+  
   return (
     <div className="flex flex-col items-center">
       {seatRows.map(({ row, seats }) => (
