@@ -2,6 +2,7 @@ const cookieParser = require('cookie-parser');
 const express = require('express');
 const axios = require('axios');
 const cors = require('cors');
+const Razorpay = require('razorpay');
 const bcrypt = require('bcrypt');
 const jwt = require('jsonwebtoken');
 require('dotenv').config();
@@ -286,7 +287,29 @@ app.delete('/api/deleteBooking/:bookingId', async (req, res) => {
   }
 });
 
+const razorpayInstance = new Razorpay({
+  key_id: process.env.RAZORPAY_KEY_ID, // Add your Razorpay Key ID
+  key_secret: process.env.RAZORPAY_KEY_SECRET, // Add your Razorpay Key Secret
+});
+app.post('/api/payment', async (req, res) => {
+  const { amount } = req.body; // Example: amount = 250 (in INR)
 
+  try {
+    const paymentOrder = await razorpayInstance.orders.create({
+      amount: amount * 100, // Razorpay expects amount in paise (100 paise = 1 INR)
+      currency: 'INR',
+      receipt: `receipt_order_${Math.random()}`,
+    });
+
+    res.status(200).json({
+      id: paymentOrder.id,
+      currency: paymentOrder.currency,
+      amount: paymentOrder.amount,
+    });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
 
 
 app.listen(port, () => {

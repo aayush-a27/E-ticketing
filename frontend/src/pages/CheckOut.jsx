@@ -9,17 +9,39 @@ const CheckOut = () => {
   const { seatSelected, selectedTime, title, theaterName,  moviePoster } = location.state;
   const payment = async () => {
     try {
-      const response = await axios.post("/api/checkOut", { seatSelected, selectedTime, title, theaterName });
-      if (response.data.message) {
-        alert(response.data.message);
-        await axios.post("/api/bookTicket", {
+    const response = await axios.post('/api/payment', { amount: 250 }); // Amount in INR
+    const { id, currency, amount } = response.data;
+
+    const options = {
+      key: "rzp_test_UC8hSWUDN0cL2v", // Replace with your Razorpay key ID
+      amount,
+      currency,
+      name: "Movie Booking",
+      description: "Ticket Payment",
+      image: "/your_logo.png", // Optional logo
+      order_id: id,
+      handler: async (response) => {
+        alert(`Payment successful! Payment ID: ${response.razorpay_payment_id}`);
+        await axios.post('/api/bookTicket', {
           seatSelected,
           selectedTime,
           title,
           theaterName,
         });
-      }
-    } catch (error) {
+      },
+      prefill: {
+        name: "Your Name", // Optional: user's name
+        email: "email@example.com", // Optional: user's email
+        contact: "9876543210", // Optional: user's phone number
+      },
+      theme: {
+        color: "#F37254", // Razorpay theme color
+      },
+    };
+
+    const razorpay = new window.Razorpay(options);
+    razorpay.open();
+  }catch (error) {
       localStorage.setItem('lastVisited', '/checkOut');
       localStorage.setItem('seatSelected', JSON.stringify(seatSelected));  // Store the state
       localStorage.setItem('selectedTime', selectedTime);  // Store the selected time

@@ -19,6 +19,7 @@
     "jsonwebtoken": "^9.0.2",
     "mongoose": "^8.6.0",
     "opencage-api-client": "^1.0.7",
+    "razorpay": "^2.9.5",
     "serpapi": "^2.1.0",
     "socket.io": "^4.8.0"
   }
