@@ -6,9 +6,10 @@ import { RiMovieLine } from "@remixicon/react";
 const Theaterfetch = () => {
   const location = useLocation();
   const navigate = useNavigate();
-  const { title, releaseDate } = location.state || {
+  const { title, releaseDate, moviePoster } = location.state || {
     title: "",
     releaseDate: "",
+    moviePoster: ""
   };
   const [Theater, setTheater] = useState(null);
   const [dayClicked, setDayClicked] = useState(false);
@@ -74,7 +75,7 @@ const Theaterfetch = () => {
   // Handle click on the entire <li> element
   const handleTheaterClick = (timingsArray, theaterName) => {
     // Navigate to the SeatsBooking component and pass the timings array
-    navigate("/seatsBooking", { state: { timings: timingsArray,title, theaterName } });
+    navigate("/seatsBooking", { state: { timings: timingsArray,title, theaterName, moviePoster } });
   };
 
   return (

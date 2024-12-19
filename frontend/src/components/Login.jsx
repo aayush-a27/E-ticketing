@@ -20,12 +20,13 @@ const Login = () => {
       if (lastVisited) {
         const seatSelected = JSON.parse(localStorage.getItem('seatSelected'));
         const selectedTime = localStorage.getItem('selectedTime');
+        const moviePoster = localStorage.getItem('moviePoster');
         const title = localStorage.getItem('title');
         const theaterName = localStorage.getItem('theaterName');
   
         // Navigate to the checkout route with the saved data
         navigate(lastVisited, {
-          state: { seatSelected, selectedTime, title, theaterName },
+          state: { seatSelected, selectedTime, title, theaterName, moviePoster },
         });
   
         // Clear the stored data
@@ -34,6 +35,7 @@ const Login = () => {
         localStorage.removeItem('selectedTime');
         localStorage.removeItem('title');
         localStorage.removeItem('theaterName');
+        localStorage.removeItem('moviePoster');
       } else {
         navigate('/'); // Default redirect if no last visited path
       }
