@@ -5,6 +5,9 @@ import { useNavigate } from "react-router-dom";
 const Login = () => {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const inputStyle = "w-full px-4 py-2 bg-transparent border border-black rounded-md focus:outline-none focus:ring-2 focus:ring-black transition-all duration-200";
+const buttonStyle = "w-full bg-black text-white px-4 py-2 rounded-md hover:scale-105 hover:shadow-lg transition-all duration-200";
+
   const navigate = useNavigate();
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -12,11 +15,16 @@ const Login = () => {
       const response = await axios.post(
         '/api/login',
         { email, password },
-        { withCredentials: true } // This enables sending and receiving cookies
+        { withCredentials: true } // For cookies
       );
-      response ? console.log('Login successful') : "";
+      if (response) {
+        const response = await axios.get('/api/checkLogin');
+        navigate(response.data.lastVisited)
+      };
   
+      // Check if there is a last visited route
       const lastVisited = localStorage.getItem('lastVisited');
+      console.log(lastVisited)
       if (lastVisited) {
         const seatSelected = JSON.parse(localStorage.getItem('seatSelected'));
         const selectedTime = localStorage.getItem('selectedTime');
@@ -24,25 +32,24 @@ const Login = () => {
         const title = localStorage.getItem('title');
         const theaterName = localStorage.getItem('theaterName');
   
-        // Navigate to the checkout route with the saved data
+        // Navigate to the saved route
         navigate(lastVisited, {
           state: { seatSelected, selectedTime, title, theaterName, moviePoster },
         });
-  
-        // Clear the stored data
-        localStorage.removeItem('lastVisited');
+      } else {
+        navigate('/'); // Default redirect if no last visited page
+      }
+    } catch (error) {
+      console.error('Login failed', error.response?.data?.message || error.message);
+    }
+    localStorage.removeItem('lastVisited');
         localStorage.removeItem('seatSelected');
         localStorage.removeItem('selectedTime');
         localStorage.removeItem('title');
         localStorage.removeItem('theaterName');
         localStorage.removeItem('moviePoster');
-      } else {
-        navigate('/'); // Default redirect if no last visited path
-      }
-    } catch (error) {
-      console.error('Login failed', error.response?.data?.message || error.message);
-    }
   };
+  
   
 
   return (
@@ -55,7 +62,7 @@ const Login = () => {
             <input
               id="login-email"
               type="email"
-              className="w-full px-3 py-2 border rounded-md"
+              className={inputStyle}
               placeholder="Enter your email"
               value={email}
               onChange={(e) => setEmail(e.target.value)}
@@ -66,7 +73,7 @@ const Login = () => {
             <input
               id="login-password"
               type="password"
-              className="w-full px-3 py-2 border rounded-md"
+              className={inputStyle}
               placeholder="Enter your password"
               value={password}
               onChange={(e) => setPassword(e.target.value)}
@@ -74,7 +81,7 @@ const Login = () => {
           </div>
           <button
             type="submit"
-            className="bg-green-500 text-white px-4 py-2 rounded-md hover:bg-green-600 w-full"
+            className={buttonStyle}
           >
             Login
           </button>

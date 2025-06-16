@@ -5,6 +5,8 @@ const SignUp = () => {
   const [username, setUsername] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+    const inputStyle = "w-full px-4 py-2 bg-transparent border border-black rounded-md focus:outline-none focus:ring-2 focus:ring-black transition-all duration-200";
+const buttonStyle = "w-full bg-black text-white px-4 py-2 rounded-md hover:scale-105 hover:shadow-lg transition-all duration-200";
 
   const handleSubmit = async (e) => {
     e.preventDefault(); // Prevent the default form submission
@@ -36,7 +38,7 @@ const SignUp = () => {
             <input
               id="signup-username"
               type="text"
-              className="w-full px-3 py-2 border rounded-md"
+              className={inputStyle}
               placeholder="Enter your username"
               value={username}
               onChange={(e) => setUsername(e.target.value)} // Update username state
@@ -47,7 +49,7 @@ const SignUp = () => {
             <input
               id="signup-email"
               type="email"
-              className="w-full px-3 py-2 border rounded-md"
+              className={inputStyle}
               placeholder="Enter your email"
               value={email}
               onChange={(e) => setEmail(e.target.value)} // Update email state
@@ -58,7 +60,7 @@ const SignUp = () => {
             <input
               id="signup-password"
               type="password"
-              className="w-full px-3 py-2 border rounded-md"
+              className={inputStyle}
               placeholder="Enter your password"
               value={password}
               onChange={(e) => setPassword(e.target.value)} // Update password state
@@ -66,7 +68,7 @@ const SignUp = () => {
           </div>
           <button
             type="submit"
-            className="bg-green-500 text-white px-4 py-2 rounded-md hover:bg-green-600 w-full"
+            className={buttonStyle}
           >
             Sign Up
           </button>

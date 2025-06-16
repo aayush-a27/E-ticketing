@@ -1,4 +1,5 @@
 import { useLocation, useNavigate } from "react-router-dom";
+import { motion } from "framer-motion";
 
 const Moviedetails = () => {
   const navigate = useNavigate();
@@ -6,58 +7,139 @@ const Moviedetails = () => {
   const { movie } = location.state;
 
   const handleButtonClick = () => {
-    const releaseYear = movie.release_date.split('-')[0];  // Extract the year
-    console.log(movie.title, releaseYear);
-    navigate('/theater', { state: { title: movie.title, releaseDate: releaseYear, moviePoster : movie.poster_path} });
+    const releaseYear = movie.release_date.split("-")[0];
+    navigate("/theater", {
+      state: {
+        title: movie.title,
+        releaseDate: releaseYear,
+        moviePoster: movie.poster_path,
+      },
+    });
   };
+
+  const genres = movie.genres || ["Action", "Adventure", "Drama"]; // Fallback
+
+  const facts = [
+    "This movie was shot across 3 continents!",
+    "Director took inspiration from classic noir films.",
+    "The lead actor did all their own stunts!",
+    "One scene took 42 takes to perfect.",
+  ];
+
   return (
-    <div className="h-[90%] w-full px-28 py-10 relative overflow-hidden">
-      <div className="circle1 bg-green-500 h-[100vh] w-[50vw] absolute -left-64 bottom-5 -top-64 -z-10 rounded-full"></div>
-      <div className="circle1 bg-green-500 h-[100vh] w-[50vw] absolute -right-64 top-64 -z-10 rounded-full"></div>
-      <h1 className="w-full flex items-center text-8xl font-bold mb-12">
+    <motion.div
+      className="min-h-screen w-full bg-black text-white px-10 md:px-28 py-12 font-[CabinSketch]"
+      initial={{ opacity: 0, y: 50 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ duration: 0.8 }}
+    >
+      <h1 className="text-5xl md:text-7xl font-bold tracking-wide mb-12 text-center md:text-left">
         {movie.title}
       </h1>
 
-      {/* Movie Poster and Details */}
-      <div className="w-full h-[60%] flex items-start justify-center">
+      <div className="flex flex-col md:flex-row gap-10">
         {movie.poster_path && (
-          <img
-            className="rounded-xl overflow-hidden w-[20%] h-full object-cover"
+          <motion.img
+            className="rounded-xl w-full md:w-[25%] object-cover shadow-xl"
             src={`https://image.tmdb.org/t/p/w500${movie.poster_path}`}
             alt={movie.title}
+            initial={{ scale: 0.95 }}
+            animate={{ scale: 1 }}
+            transition={{ delay: 0.4 }}
           />
         )}
 
-        <div className="w-[80%] px-24">
-          {/* Movie Description */}
-          <p className="text-2xl flex gap-20">
-            <span className="font-bold">Description: </span> {movie.overview}
+        <div className="md:w-[75%] space-y-8">
+          <p className="text-xl md:text-2xl">
+            <span className="font-bold">Description: </span>
+            {movie.overview}
           </p>
 
-          {/* Release Date */}
-          <div className="flex w-full mt-10 text-2xl gap-16">
-            <span className="font-bold">Release Date:</span>{" "}
+          <p className="text-xl md:text-2xl">
+            <span className="font-bold">Release Date: </span>
             {movie.release_date}
-          </div>
+          </p>
 
-          {/* Cast List */}
-          <div className="flex w-full mt-10 text-2xl gap-36">
-            <span className="w-28 font-bold">Casts:</span>
-            <div className="flex gap-10 flex-wrap">
+          <div className="text-xl md:text-2xl">
+            <span className="font-bold block mb-2">Casts:</span>
+            <div className="flex gap-6 flex-wrap">
               {movie.cast.slice(0, 5).map((member, index) => (
-                <span className="border-b-2 border-black" key={index}>
+                <motion.span
+                  key={index}
+                  className="border-b-2 border-white hover:text-gray-400 cursor-pointer"
+                  whileHover={{ scale: 1.1 }}
+                >
                   {member.name}
-                </span>
+                </motion.span>
               ))}
             </div>
           </div>
-          <div className="w-full mt-20 -ml-44 flex items-center justify-center gap-10">
-            <button className="py-3 px-6 rounded-2xl bg-black text-white">Watch Trailer</button>
-            <button onClick={handleButtonClick} className="py-3 px-6 rounded-2xl bg-black text-white">Find Theaters</button>
+
+          <div className="mt-10 flex flex-wrap gap-6">
+            <motion.button
+              className="px-6 py-3 border border-white text-white rounded-full relative overflow-hidden group"
+              whileHover={{ scale: 1.05 }}
+              onClick={() => alert("Trailer feature coming soon!")}
+            >
+              <span className="relative z-10">🎬 Watch Trailer</span>
+              <div className="absolute inset-0 bg-white scale-x-0 group-hover:scale-x-100 transition-transform origin-left duration-300 z-0" />
+              <style>{`
+                .group:hover span {
+                  color: black;
+                }
+              `}</style>
+            </motion.button>
+
+            <motion.button
+              className="px-6 py-3 border border-white text-white rounded-full relative overflow-hidden group"
+              whileHover={{ scale: 1.05 }}
+              onClick={handleButtonClick}
+            >
+              <span className="relative z-10">📍 Find Theaters</span>
+              <div className="absolute inset-0 bg-white scale-x-0 group-hover:scale-x-100 transition-transform origin-left duration-300 z-0" />
+              <style>{`
+                .group:hover span {
+                  color: black;
+                }
+              `}</style>
+            </motion.button>
           </div>
         </div>
       </div>
-    </div>
+
+      {/* ✨ Extra Movie Info Section */}
+      {/* ✨ Extra Movie Info Section */}
+      <motion.div
+        className="mt-10 md:mt-14 w-full text-center"
+        initial={{ opacity: 0 }}
+        whileInView={{ opacity: 1 }}
+        transition={{ delay: 0.4, duration: 1 }}
+        viewport={{ once: true }}
+      >
+        <h2 className="text-4xl mb-6">🎥 Genre Tags</h2>
+        <div className="flex justify-center gap-4 flex-wrap text-xl">
+          {genres.map((genre, idx) => (
+            <span
+              key={idx}
+              className="border px-4 py-1 rounded-full hover:bg-white hover:text-black transition"
+            >
+              {genre}
+            </span>
+          ))}
+        </div>
+
+        <h2 className="text-4xl mt-10 mb-4">💡 Did You Know?</h2>
+        <p className="text-xl italic max-w-3xl mx-auto text-gray-300">
+          {facts[Math.floor(Math.random() * facts.length)]}
+        </p>
+
+        <h2 className="text-4xl mt-10 mb-4">🗯️ Viewer Reactions</h2>
+        <p className="text-xl text-white max-w-2xl mx-auto font-[CabinSketch]">
+          “Absolutely mind-bending! Felt like I was time-traveling with popcorn
+          in hand.” – A fan
+        </p>
+      </motion.div>
+    </motion.div>
   );
 };
 

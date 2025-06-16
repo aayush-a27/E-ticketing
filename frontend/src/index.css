@@ -57,3 +57,15 @@
     left: calc(100% - 50px); /* Moves the ball to the right edge minus the ball's width */
   }
 }
+
+/* Spinner Loader */
+.loader {
+  border-top-color: #ffffff;
+  animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}

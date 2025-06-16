@@ -217,15 +217,13 @@ app.post('/api/login', async (req, res) => {
   }
 });
 
-app.post('/api/checkOut', loggedInToken, async (req, res) => {
-  try {
-    const { seatSelected } = req.body;
-    // Mock confirmation message for testing
-    res.status(200).json({ message: "Checkout route is working and protected!", seatSelected });
-  } catch (error) {
-    res.status(500).json({ error: "Failed to access checkout route" });
-  }
+app.get('/api/checkLogin', loggedInToken, (req, res) => {
+  // If the middleware allows, the user is logged in
+  res.status(200).json({ loggedIn: true, user: req.user,  lastVisited: "/checkOut" });
 });
+
+// If the user is not logged in, the middleware will return 401.
+
 // In your backend
 const BookingData = require('./models/BookingData');  // Make sure to import your model
 
