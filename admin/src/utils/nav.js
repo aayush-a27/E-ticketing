@@ -47,9 +47,9 @@ export const NAV_SECTIONS = [
   {
     label: 'Catalogue',
     items: [
-      { to: '/movies', label: 'Movies', icon: Film, roles: ADMIN_ONLY, ready: false },
-      { to: '/theaters', label: 'Theaters', icon: Building2, roles: BOTH, ready: false },
-      { to: '/shows', label: 'Shows', icon: CalendarClock, roles: BOTH, ready: false },
+      { to: '/movies', label: 'Movies', icon: Film, roles: ADMIN_ONLY, ready: true },
+      { to: '/theaters', label: 'Theaters', icon: Building2, roles: BOTH, ready: true },
+      { to: '/shows', label: 'Shows', icon: CalendarClock, roles: BOTH, ready: true },
     ],
   },
   {

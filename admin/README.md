@@ -65,11 +65,66 @@ than a wall of unexplained zeros.
 | --- | --- | --- |
 | `/login` | Sign in, preserving the page you were heading for | — |
 | `/` | Dashboard: bookings, money, upcoming shows, 14-day trend | both roles |
+| `/movies` | Catalogue, with search, filters, sorting and pagination | super admin |
+| `/movies/new` · `/movies/:id/edit` | Create and edit a film | super admin |
+| `/movies/:id` | Details, poster and backdrop, publish / unpublish / archive | super admin |
+| `/theaters` | Venues, filtered by city and status | both roles |
+| `/theaters/new` | Create a venue | super admin |
+| `/theaters/:id` | Details, photographs, screens, managers | both roles |
+| `/theaters/:id/edit` | Edit a venue | both roles |
+| `/theaters/:id/screens/:screenId` | Screen settings and versioned seat layouts | both roles |
+| `/shows` | Schedule, filtered by date, venue, film, format and status | both roles |
+| `/shows/new` · `/shows/:id/edit` | Schedule and amend a show | both roles |
+| `/shows/:id` | Seat inventory, pricing, publish, cancel, block seats | both roles |
 | `/no-access` | Why this account has no console | — |
 
 The sidebar grows as sections are built. Items whose pages do not exist yet are
 left out of the menu entirely rather than shown as dead links, so nothing in
 the navigation leads somewhere that does not work. See `src/utils/nav.js`.
+
+## What the catalogue pages will not let you do
+
+These are the server's rules, surfaced rather than worked around.
+
+**A film cannot be published without a poster.** The detail page says so on the
+badge before you try, and the publish endpoint refuses regardless.
+
+**Status is not a form field.** Publish, unpublish and archive are separate
+endpoints with separate rules, and `status` in an update body is dropped by the
+server, so a dropdown here would either bypass those rules or lie about them.
+Unpublishing reports how many scheduled shows it affected.
+
+**Seat layouts are versioned and never edited in place.** A show pins the
+version it was scheduled against, so its seat inventory and sold tickets keep
+meaning something after the room is rearranged. Building a layout creates a new
+version; switching which one is active is refused while upcoming published
+shows still use the current one, and the refusal names how many.
+
+**A show cannot be priced for a category its layout does not have.** The
+pricing fields come from the layout the show will actually use, not from a
+fixed list.
+
+**Once one ticket is sold, a show's start time, pricing, format and language
+are frozen.** The edit form locks exactly those fields and explains why; only
+the booking window stays editable. Moving or repricing the show would mean
+cancelling it, which refunds everyone holding a ticket.
+
+**A screen with no active seat layout cannot host a show.** It appears in the
+screen dropdown as disabled, labelled with the reason.
+
+## Image uploads
+
+Three steps, in this order: the server issues a signed, scoped upload ticket;
+the browser posts the file straight to the provider with it; the provider's own
+public id is handed to the resource's media endpoint, which re-verifies the
+asset exists before storing it. The file never passes through the API and the
+provider's secret never reaches the browser.
+
+With `MEDIA_PROVIDER=memory` — the default, so the project runs with no
+Cloudinary account — there is nowhere to upload to. The uploader detects this
+and says so plainly instead of reporting a success that did not happen. Set
+`MEDIA_PROVIDER=cloudinary` with a cloud name, API key and secret to store
+images for real; a free account is enough.
 
 ## How correctness is kept
 
