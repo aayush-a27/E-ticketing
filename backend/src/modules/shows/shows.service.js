@@ -363,6 +363,64 @@ function dayRange(dateString, timezoneOffsetMinutes = 330) {
   };
 }
 
+/**
+ * The public shape of a show. Internal fields — who created it, its draft
+ * status, and `bookedSeatCount`, which is commercial data — never leave the
+ * platform. Handles a populated or a bare reference, so one serializer covers
+ * both the list and the detail query.
+ */
+function publicShowJSON(show) {
+  const ref = (value, project) =>
+    value && typeof value === 'object' && value._id ? project(value) : null;
+
+  const pricing = show.pricing.map((item) => ({
+    category: item.category,
+    basePaise: item.basePaise,
+  }));
+
+  return {
+    id: String(show._id),
+    startAt: show.startAt,
+    endAt: show.endAt,
+    timezone: show.timezone,
+    language: show.language,
+    format: show.format,
+    layoutVersion: show.layoutVersion,
+    pricing,
+    // Saves every client re-deriving "from ₹150" for a listing card.
+    startingPricePaise: pricing.length ? Math.min(...pricing.map((item) => item.basePaise)) : null,
+    bookingOpensAt: show.bookingOpensAt ?? null,
+    bookingClosesAt: show.bookingClosesAt ?? null,
+    isBookable: show.isBookable,
+
+    movieId: String(show.movieId?._id ?? show.movieId),
+    theaterId: String(show.theaterId?._id ?? show.theaterId),
+    screenId: String(show.screenId?._id ?? show.screenId),
+
+    movie: ref(show.movieId, (movie) => ({
+      id: String(movie._id),
+      title: movie.title,
+      slug: movie.slug,
+      poster: movie.poster ? { url: movie.poster.url } : null,
+      synopsis: movie.synopsis ?? undefined,
+      runtimeMinutes: movie.runtimeMinutes,
+      certification: movie.certification,
+      languages: movie.languages ?? undefined,
+    })),
+    theater: ref(show.theaterId, (theater) => ({
+      id: String(theater._id),
+      name: theater.name,
+      city: theater.cityLabel,
+      address: [theater.addressLine1, theater.addressLine2].filter(Boolean).join(', '),
+    })),
+    screen: ref(show.screenId, (screen) => ({
+      id: String(screen._id),
+      name: screen.name,
+      formats: screen.formats,
+    })),
+  };
+}
+
 export async function listShows(query, { user = null, publicOnly = false } = {}) {
   const { page, limit, skip } = resolvePagination(query);
   const filter = {};
@@ -405,7 +463,10 @@ export async function listShows(query, { user = null, publicOnly = false } = {})
     Show.countDocuments(filter),
   ]);
 
-  return paginated(items, { page, limit, total });
+  return paginated(
+    items.map((show) => (publicOnly ? publicShowJSON(show) : show)),
+    { page, limit, total },
+  );
 }
 
 export async function getShow(id, { publicOnly = false } = {}) {
@@ -418,7 +479,7 @@ export async function getShow(id, { publicOnly = false } = {}) {
     .populate('screenId', 'name formats');
 
   if (!show) throw ApiError.notFound('Show not found');
-  return show;
+  return publicOnly ? publicShowJSON(show) : show;
 }
 
 /**

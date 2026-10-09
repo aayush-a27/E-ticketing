@@ -575,6 +575,53 @@ describe('public show browsing', () => {
     expect(response.status).toBe(404);
   });
 
+  /**
+   * The public endpoints must not hand out who created a show, its draft
+   * status, or how many seats it has sold.
+   */
+  it('hides internal fields from the public list and detail', async () => {
+    const context = await setup();
+    const showId = await publishedShow(context);
+    await Show.updateOne({ _id: showId }, { bookedSeatCount: 7 });
+
+    const list = await api().get('/api/v1/shows');
+    const detail = await api().get(`/api/v1/shows/${showId}`);
+
+    for (const payload of [list.body.data[0], detail.body.data.show]) {
+      expect(payload.bookedSeatCount).toBeUndefined();
+      expect(payload.createdBy).toBeUndefined();
+      expect(payload.updatedBy).toBeUndefined();
+      expect(payload.status).toBeUndefined();
+      expect(payload.inventoryGeneratedAt).toBeUndefined();
+    }
+    expect(JSON.stringify(list.body)).not.toContain('bookedSeatCount');
+  });
+
+  it('exposes what a listing card needs, including a starting price', async () => {
+    const context = await setup();
+    await publishedShow(context);
+
+    const response = await api().get('/api/v1/shows');
+    const show = response.body.data[0];
+
+    expect(show.movie.title).toBe('The Long Afternoon');
+    expect(show.theater.city).toBe('Dehradun');
+    expect(show.screen.name).toBe('Screen 1');
+    // Cheapest category of the two priced on this show.
+    expect(show.startingPricePaise).toBe(15_000);
+    expect(show.isBookable).toBe(true);
+  });
+
+  it('still gives managers the full document', async () => {
+    const context = await setup();
+    const showId = await publishedShow(context);
+    await Show.updateOne({ _id: showId }, { bookedSeatCount: 7 });
+
+    const runnerView = await context.runnerAgent.get(`/api/v1/show-runner/shows/${showId}`);
+    expect(runnerView.body.data.show.bookedSeatCount).toBe(7);
+    expect(runnerView.body.data.show.status).toBe(SHOW_STATUS.PUBLISHED);
+  });
+
   it('returns a seat map with per-category prices', async () => {
     const context = await setup();
     const showId = await publishedShow(context);
