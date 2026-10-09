@@ -582,6 +582,18 @@ describe('booking history', () => {
     expect((await strangerAgent.get('/api/v1/me/bookings')).body.pagination.total).toBe(0);
   });
 
+  /** So a customer can find and finish a booking they abandoned mid-payment. */
+  it('shows an unpaid booking under upcoming', async () => {
+    const context = await readyToPay();
+    const booking = await openBooking(context);
+
+    const response = await context.agent.get('/api/v1/me/bookings?scope=upcoming');
+
+    expect(response.body.data).toHaveLength(1);
+    expect(response.body.data[0].id).toBe(booking.id);
+    expect(response.body.data[0].status).toBe(BOOKING_STATUS.PENDING_PAYMENT);
+  });
+
   it('separates upcoming from past', async () => {
     const context = await readyToPay();
     const booking = await openBooking(context);

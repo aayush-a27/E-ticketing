@@ -300,7 +300,18 @@ export async function listOwnBookings(user, query) {
 
   const now = new Date();
   if (query.scope === 'upcoming') {
-    filter.status = BOOKING_STATUS.CONFIRMED;
+    /**
+     * Includes bookings that have not been paid for yet. A customer who closed
+     * the payment window needs to find that booking again to finish it, and
+     * hiding it until it is confirmed is how people lose their seats.
+     */
+    filter.status = {
+      $in: [
+        BOOKING_STATUS.CONFIRMED,
+        BOOKING_STATUS.PENDING_PAYMENT,
+        BOOKING_STATUS.PAYMENT_FAILED,
+      ],
+    };
     filter['snapshot.startAt'] = { $gt: now };
   } else if (query.scope === 'past') {
     filter.status = BOOKING_STATUS.CONFIRMED;

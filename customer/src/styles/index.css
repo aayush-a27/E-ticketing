@@ -1,0 +1,222 @@
+@import 'tailwindcss';
+
+/* ===========================================================================
+   CineReserve design system
+   ---------------------------------------------------------------------------
+   A cinema is a dark room with a lit screen, so the palette starts at midnight
+   and uses warmth sparingly: ivory for the surfaces you read from, amber for
+   the one thing on screen that wants your attention.
+   =========================================================================== */
+
+@theme {
+  /* --- Surfaces, darkest to lightest ------------------------------------ */
+  --color-midnight: #0b0d12;
+  --color-midnight-raised: #11141c;
+  --color-charcoal: #171b25;
+  --color-charcoal-soft: #1e2330;
+  --color-slate-line: #2a3040;
+
+  /* --- Ivory, for content you actually read ----------------------------- */
+  --color-ivory: #f6f1e7;
+  --color-ivory-dim: #ded8cc;
+  --color-ivory-muted: #9ba3b4;
+
+  /* --- Amber accent ------------------------------------------------------ */
+  --color-amber-brand: #d4a24c;
+  --color-amber-bright: #e8bc6b;
+  --color-amber-deep: #a97d33;
+
+  /* --- Status ------------------------------------------------------------ */
+  --color-status-good: #4ca97d;
+  --color-status-warn: #d8a13f;
+  --color-status-bad: #cf5c5c;
+
+  /* --- Type -------------------------------------------------------------- */
+  --font-display: 'Fraunces', ui-serif, Georgia, serif;
+  --font-sans: 'Inter', ui-sans-serif, system-ui, sans-serif;
+
+  /* --- Golden ratio ------------------------------------------------------
+     φ = 1.618. Used where proportion is visible — the hero split, the detail
+     page columns — and nowhere else. Forcing it onto every gap produces
+     arithmetic, not design. */
+  --ratio-phi: 1.618;
+  --space-phi-sm: 0.618rem;
+  --space-phi-md: 1.618rem;
+  --space-phi-lg: 2.618rem;
+  --space-phi-xl: 4.236rem;
+
+  --radius-card: 14px;
+  --radius-pill: 999px;
+}
+
+@layer base {
+  :root {
+    color-scheme: dark;
+  }
+
+  html {
+    scroll-behavior: smooth;
+    -webkit-text-size-adjust: 100%;
+  }
+
+  body {
+    margin: 0;
+    background-color: var(--color-midnight);
+    color: var(--color-ivory);
+    font-family: var(--font-sans);
+    font-synthesis-weight: none;
+    text-rendering: optimizeLegibility;
+    -webkit-font-smoothing: antialiased;
+    /* Nothing should ever scroll sideways. */
+    overflow-x: hidden;
+  }
+
+  h1,
+  h2,
+  h3 {
+    font-family: var(--font-display);
+    font-weight: 600;
+    letter-spacing: -0.01em;
+  }
+
+  /* A focus ring that is always visible against both midnight and ivory. */
+  :focus-visible {
+    outline: 2px solid var(--color-amber-brand);
+    outline-offset: 2px;
+    border-radius: 4px;
+  }
+
+  /* Honour the system setting rather than animating regardless. */
+  @media (prefers-reduced-motion: reduce) {
+    *,
+    *::before,
+    *::after {
+      animation-duration: 0.01ms !important;
+      animation-iteration-count: 1 !important;
+      transition-duration: 0.01ms !important;
+      scroll-behavior: auto !important;
+    }
+  }
+
+  ::selection {
+    background: var(--color-amber-brand);
+    color: var(--color-midnight);
+  }
+}
+
+@layer components {
+  /* --- Neumorphism -------------------------------------------------------
+     Used only where a control should feel physically pressable: the search
+     field, filter chips, seats, segmented controls. Every neumorphic surface
+     keeps a real border so it stays legible at low contrast settings, and
+     never replaces the focus ring. */
+  .neu {
+    background: linear-gradient(145deg, #1a1f2b, #13161f);
+    border: 1px solid var(--color-slate-line);
+    box-shadow:
+      6px 6px 14px rgb(0 0 0 / 0.45),
+      -4px -4px 12px rgb(255 255 255 / 0.022);
+  }
+
+  .neu-inset {
+    background: linear-gradient(145deg, #13161f, #1a1f2b);
+    border: 1px solid var(--color-slate-line);
+    box-shadow:
+      inset 4px 4px 10px rgb(0 0 0 / 0.5),
+      inset -3px -3px 9px rgb(255 255 255 / 0.025);
+  }
+
+  .neu-pressable {
+    transition:
+      box-shadow 160ms ease,
+      transform 160ms ease;
+  }
+
+  .neu-pressable:active {
+    transform: translateY(1px);
+    box-shadow:
+      inset 3px 3px 8px rgb(0 0 0 / 0.5),
+      inset -2px -2px 7px rgb(255 255 255 / 0.02);
+  }
+
+  .card-surface {
+    background-color: var(--color-charcoal);
+    border: 1px solid var(--color-slate-line);
+    border-radius: var(--radius-card);
+  }
+
+  /* Page gutters, consistent everywhere. */
+  .page-shell {
+    width: 100%;
+    max-width: 1280px;
+    margin-inline: auto;
+    padding-inline: 1rem;
+  }
+
+  @media (min-width: 768px) {
+    .page-shell {
+      padding-inline: 2rem;
+    }
+  }
+
+  /* The shimmer used by every skeleton, so loading looks the same everywhere. */
+  .skeleton {
+    background: linear-gradient(
+      90deg,
+      var(--color-charcoal) 25%,
+      var(--color-charcoal-soft) 37%,
+      var(--color-charcoal) 63%
+    );
+    background-size: 400% 100%;
+    animation: skeleton-sweep 1.4s ease infinite;
+  }
+
+  @keyframes skeleton-sweep {
+    0% {
+      background-position: 100% 50%;
+    }
+    100% {
+      background-position: 0 50%;
+    }
+  }
+
+  /* Hides everything but the ticket when printing. */
+  @media print {
+    .no-print {
+      display: none !important;
+    }
+
+    body {
+      background: #fff;
+      color: #000;
+    }
+
+    .print-ticket {
+      border: 1px solid #000;
+      box-shadow: none;
+      background: #fff;
+      color: #000;
+    }
+  }
+}
+
+/* Scrollbars that do not break the dark surfaces. */
+@supports selector(::-webkit-scrollbar) {
+  ::-webkit-scrollbar {
+    width: 10px;
+    height: 10px;
+  }
+
+  ::-webkit-scrollbar-track {
+    background: var(--color-midnight-raised);
+  }
+
+  ::-webkit-scrollbar-thumb {
+    background: var(--color-slate-line);
+    border-radius: 999px;
+  }
+
+  ::-webkit-scrollbar-thumb:hover {
+    background: #3a4255;
+  }
+}

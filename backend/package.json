@@ -13,7 +13,9 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "bootstrap:admin": "node scripts/bootstrapSuperAdmin.js",
-    "migrate:users": "node scripts/migrateLegacyUsers.js"
+    "migrate:users": "node scripts/migrateLegacyUsers.js",
+    "dev:db": "node scripts/devReplicaSet.js",
+    "dev:seed": "node scripts/devSeed.js"
   },
   "dependencies": {
     "bcryptjs": "^3.0.2",
