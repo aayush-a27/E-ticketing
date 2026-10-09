@@ -16,7 +16,7 @@ v1Router.get('/', (_req, res) => {
     data: {
       name: 'CineReserve API',
       version: 'v1',
-      phase: 'Phase 5 — payments, bookings and tickets',
+      phase: 'Phase 6 — operations console',
       namespaces: {
         public: ['/movies', '/shows', '/cities', '/theaters'],
         customer: ['/me/seat-holds', '/me/bookings', '/me/organizer-applications'],

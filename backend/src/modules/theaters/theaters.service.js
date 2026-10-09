@@ -15,6 +15,8 @@ import {
   THEATER_STATUS,
 } from '../../constants/index.js';
 import { recordAudit } from '../../services/auditService.js';
+import { getMediaProvider } from '../../services/media/providers.js';
+import { logger } from '../../utils/logger.js';
 import { withTransaction, withSession } from '../../utils/withTransaction.js';
 import { resolvePagination, paginated } from '../../utils/pagination.js';
 import { managedTheaterIds } from '../../middleware/requireTheaterAccess.js';
@@ -88,6 +90,76 @@ export async function updateTheater(actor, theater, payload, req) {
     resourceId: theater._id,
     before,
     after: { name: theater.name, status: theater.status },
+    req,
+  });
+
+  return theater;
+}
+
+/** How many photographs one venue may carry. */
+export const MAX_THEATER_IMAGES = 12;
+
+/**
+ * Attaches an already-uploaded photograph to a venue.
+ *
+ * The file never passes through this server. The client uploads it straight to
+ * the media provider using a signed ticket from /uploads/signature, then hands
+ * back the publicId — which is verified against the provider here before it is
+ * stored, so a fabricated id cannot put a dead link on a venue page.
+ */
+export async function attachTheaterImage(actor, theater, { publicId, caption }, req) {
+  if (theater.images.length >= MAX_THEATER_IMAGES) {
+    throw ApiError.conflict(
+      `A theater may hold ${MAX_THEATER_IMAGES} images. Remove one first.`,
+    );
+  }
+  if (theater.images.some((image) => image.publicId === publicId)) {
+    throw ApiError.conflict('That image is already on this theater');
+  }
+
+  const asset = await getMediaProvider().getAsset(publicId);
+  if (!asset) {
+    throw ApiError.badRequest('That upload could not be found with the media provider', [
+      { field: 'publicId', message: 'Unknown asset' },
+    ]);
+  }
+
+  theater.images.push({ url: asset.url, publicId: asset.publicId, caption });
+  await theater.save();
+
+  await recordAudit({
+    actor,
+    action: AUDIT_ACTIONS.MEDIA_UPLOADED,
+    resourceType: 'Theater',
+    resourceId: theater._id,
+    after: { kind: 'theater_image', publicId: asset.publicId },
+    req,
+  });
+
+  return theater;
+}
+
+export async function removeTheaterImage(actor, theater, publicId, req) {
+  const existing = theater.images.find((image) => image.publicId === publicId);
+  if (!existing) throw ApiError.notFound('This theater has no such image');
+
+  theater.images = theater.images.filter((image) => image.publicId !== publicId);
+  await theater.save();
+
+  // The record is already updated; failing to delete the remote copy leaves an
+  // orphaned file, which is not worth failing the request over.
+  try {
+    await getMediaProvider().destroy(publicId);
+  } catch (error) {
+    logger.warn({ err: error, publicId }, 'Could not delete theater image asset');
+  }
+
+  await recordAudit({
+    actor,
+    action: AUDIT_ACTIONS.MEDIA_DELETED,
+    resourceType: 'Theater',
+    resourceId: theater._id,
+    before: { kind: 'theater_image', publicId },
     req,
   });
 

@@ -56,6 +56,26 @@ export const assignManagerSchema = z.object({
   reason: z.string().trim().min(5, 'Record why').max(1000),
 });
 
+// --- Theater images ---------------------------------------------------------
+
+/**
+ * The publicId handed back after a direct-to-provider upload. Verified against
+ * the provider before it is stored, so this only has to be shaped sensibly.
+ */
+export const attachTheaterImageSchema = z.object({
+  publicId: z.string().trim().min(1).max(400),
+  caption: z.string().trim().max(160).optional(),
+});
+
+/**
+ * The image to remove arrives as a query parameter, not a path segment: a
+ * Cloudinary publicId contains the folder path, and slashes cannot survive a
+ * single path segment without encoding games at every call site.
+ */
+export const removeTheaterImageQuerySchema = z.object({
+  publicId: z.string().trim().min(1).max(400),
+});
+
 // --- Theater requests -------------------------------------------------------
 
 export const createTheaterRequestSchema = z

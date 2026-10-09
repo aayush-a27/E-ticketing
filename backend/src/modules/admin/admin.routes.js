@@ -13,6 +13,7 @@ import {
 } from '../organizer-applications/applications.validators.js';
 import {
   listAuditSchema,
+  listShowRunnersSchema,
   listUsersSchema,
   updateShowRunnerStatusSchema,
   updateUserStatusSchema,
@@ -23,6 +24,7 @@ import { adminTheatersRouter } from '../theaters/theaters.admin.routes.js';
 import { createShowsManagementRouter } from '../shows/shows.manage.routes.js';
 import { createInventoryRouter } from '../inventory/inventory.routes.js';
 import { uploadsRouter } from '../uploads/uploads.routes.js';
+import { createOperationsRouter } from '../operations/operations.routes.js';
 import { settingsRouter } from './settings.routes.js';
 
 export const adminRouter = Router();
@@ -68,7 +70,7 @@ adminRouter.get(
   '/users/:id',
   validate({ params: userIdSchema }),
   asyncHandler(async (req, res) => {
-    res.json({ data: await service.getUser(req.params.id) });
+    res.json({ data: await service.getUser(req.user, req.params.id) });
   }),
 );
 
@@ -83,8 +85,9 @@ adminRouter.patch(
 // --- Show runners -----------------------------------------------------------
 adminRouter.get(
   '/show-runners',
+  validate({ query: listShowRunnersSchema }),
   asyncHandler(async (req, res) => {
-    res.json(await service.listShowRunners(req.query ?? {}));
+    res.json(await service.listShowRunners(req.validatedQuery ?? {}));
   }),
 );
 
@@ -109,6 +112,13 @@ adminRouter.get(
 
 // --- Catalog, venues and scheduling ----------------------------------------
 // The super admin has platform-wide reach: no theater scoping is applied.
+/**
+ * Bookings, dashboard counters and financial totals, platform-wide and with
+ * customer contact details in full. Read-only: there is no endpoint here that
+ * can confirm a booking or move money.
+ */
+adminRouter.use('/', createOperationsRouter({ scopeToTheaters: false, canSeeCustomerContact: true }));
+
 adminRouter.use('/movies', adminMoviesRouter);
 adminRouter.use('/uploads', uploadsRouter);
 adminRouter.use('/settings', settingsRouter);

@@ -27,6 +27,17 @@ export const updateShowRunnerStatusSchema = z.object({
   reason: z.string().trim().min(5, 'Record why').max(2000),
 });
 
+/**
+ * Was previously missing, so `page` and `limit` reached the query unvalidated.
+ */
+export const listShowRunnersSchema = z.object({
+  status: z.enum(SHOW_RUNNER_STATUS_VALUES).optional(),
+  search: z.string().trim().max(120).optional(),
+  assigned: z.enum(['true', 'false']).optional(),
+  page: z.coerce.number().int().min(1).optional(),
+  limit: z.coerce.number().int().min(1).max(100).optional(),
+});
+
 export const listAuditSchema = z.object({
   action: z.string().trim().max(80).optional(),
   actorId: objectId.optional(),

@@ -5,10 +5,12 @@ import { requireTheaterAccess, requireScreenAccess } from '../../middleware/requ
 import * as service from './theaters.service.js';
 import * as requests from './theaterRequests.service.js';
 import {
+  attachTheaterImageSchema,
   createLayoutSchema,
   createScreenSchema,
   createTheaterRequestSchema,
   listTheatersSchema,
+  removeTheaterImageQuerySchema,
   screenIdSchema,
   screenVersionParamsSchema,
   theaterIdSchema,
@@ -48,6 +50,35 @@ showRunnerTheatersRouter.patch(
   requireTheaterAccess(),
   asyncHandler(async (req, res) => {
     const theater = await service.updateTheater(req.user, req.theater, req.body, req);
+    res.json({ data: { theater } });
+  }),
+);
+
+// --- Theater images ---------------------------------------------------------
+// A runner may illustrate a venue they manage, and only one they manage: gate
+// 4 resolves the theater from the database before either handler runs.
+
+showRunnerTheatersRouter.post(
+  '/theaters/:theaterId/images',
+  validate({ params: theaterIdSchema, body: attachTheaterImageSchema }),
+  requireTheaterAccess(),
+  asyncHandler(async (req, res) => {
+    const theater = await service.attachTheaterImage(req.user, req.theater, req.body, req);
+    res.status(201).json({ data: { theater } });
+  }),
+);
+
+showRunnerTheatersRouter.delete(
+  '/theaters/:theaterId/images',
+  validate({ params: theaterIdSchema, query: removeTheaterImageQuerySchema }),
+  requireTheaterAccess(),
+  asyncHandler(async (req, res) => {
+    const theater = await service.removeTheaterImage(
+      req.user,
+      req.theater,
+      req.validatedQuery.publicId,
+      req,
+    );
     res.json({ data: { theater } });
   }),
 );

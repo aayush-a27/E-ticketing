@@ -82,6 +82,11 @@ export async function createBooking(user, { holdId }, req) {
     userId: user._id,
     showId: show._id,
     holdId: hold._id,
+    // Taken from the show, never from the request: these are what the venue
+    // operations endpoints scope on.
+    theaterId: show.theaterId,
+    screenId: show.screenId,
+    movieId: show.movieId,
     snapshot: {
       movieTitle: movie.title,
       movieSlug: movie.slug,

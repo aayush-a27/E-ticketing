@@ -75,10 +75,10 @@ The API is then on `http://localhost:4000`, health on `/health`.
 | `APP_PUBLIC_URL` | no | `http://localhost:5173` | Used to build links in notifications |
 | `MEDIA_PROVIDER` | no | `memory` | `memory` (no account needed) \| `cloudinary` |
 | `PAYMENT_PROVIDER` | no | `memory` | `memory` (simulated, free) \| `razorpay` |
-| `RAZORPAY_KEY_ID` | only for razorpay | � | Publishable; safe to send to a browser |
-| `RAZORPAY_KEY_SECRET` | only for razorpay | � | Never leaves the server |
-| `RAZORPAY_WEBHOOK_SECRET` | only for razorpay | � | From the dashboard's webhook settings |
-| `TICKET_TOKEN_SECRET` | **yes** | � | 32+ chars, different from the JWT secrets |
+| `RAZORPAY_KEY_ID` | only for razorpay | — | Publishable; safe to send to a browser |
+| `RAZORPAY_KEY_SECRET` | only for razorpay | — | Never leaves the server |
+| `RAZORPAY_WEBHOOK_SECRET` | only for razorpay | — | From the dashboard's webhook settings |
+| `TICKET_TOKEN_SECRET` | **yes** | — | 32+ chars, different from the JWT secrets |
 | `SEAT_HOLD_SWEEP_INTERVAL_MS` | no | `30000` | How often lapsed holds are swept |
 | `RECONCILE_INTERVAL_MS` | no | `60000` | Abandoned bookings, refunds, notifications |
 | `CLOUDINARY_CLOUD_NAME` | only for cloudinary | — | From the Cloudinary dashboard |
@@ -183,9 +183,19 @@ checks that this user manages it.
 | GET / POST | `/screens/:screenId/layouts` |
 | GET | `/screens/:screenId/layouts/:version` |
 | POST | `/screens/:screenId/layouts/:version/activate` |
+| POST | `/theaters/:theaterId/images` · DELETE `/theaters/:theaterId/images?publicId=` |
 | GET / POST | `/shows` |
 | GET / PATCH | `/shows/:id` |
 | POST | `/shows/:id/publish` · `/shows/:id/cancel` |
+| GET | `/shows/:showId/inventory` · `/shows/:showId/seats` |
+| POST | `/shows/:showId/seats/:seatId/block` · `/unblock` |
+| GET | `/dashboard` |
+| GET | `/bookings` · `/bookings/:id` |
+| GET | `/finance/summary` · `/refunds` |
+
+The last four rows are read-only and scoped to this runner's assigned venues
+in the database query rather than afterwards. Customer email addresses come
+back masked, and a runner with no venue assigned yet sees an empty console.
 
 ### Admin — `/api/v1/admin`
 
@@ -206,8 +216,34 @@ All of these require `super_admin` and are not scoped to any venue.
 | POST | `/theaters/:theaterId/managers` · DELETE `/theaters/:theaterId/managers/:id` |
 | GET | `/theater-requests` · POST `/theater-requests/:id/approve` · `/reject` |
 | GET / POST | `/theaters/:theaterId/screens` · PATCH `/screens/:screenId` |
-| POST | `/screens/:screenId/layouts` |
+| GET / POST | `/screens/:screenId/layouts` |
+| GET | `/screens/:screenId/layouts/:version` |
+| POST | `/screens/:screenId/layouts/:version/activate` |
+| POST | `/theaters/:theaterId/images` · DELETE `/theaters/:theaterId/images?publicId=` |
 | GET / POST | `/shows` · GET/PATCH `/shows/:id` · POST `/shows/:id/publish` · `/cancel` |
+| GET | `/shows/:showId/inventory` · `/shows/:showId/seats` |
+| POST | `/shows/:showId/seats/:seatId/block` · `/unblock` |
+| GET | `/settings` · PATCH `/settings` |
+| GET | `/dashboard` |
+| GET | `/bookings` · `/bookings/:id` |
+| GET | `/finance/summary` · `/refunds` |
+
+#### The operations endpoints only read
+
+`/dashboard`, `/bookings`, `/finance/summary` and `/refunds` exist in both
+namespaces. Nothing there writes. There is deliberately no endpoint that sets
+a booking's status or payment status, and none that starts a refund from a
+console: confirming a booking requires a gateway signature the server has
+checked, and refunds follow the configured cancellation policy. An
+administrator cannot shortcut either.
+
+Money is reported from the records that prove it. Collected totals come from
+captured payment attempts; refunds come from the `Refund` collection alone,
+because `Payment.refundedPaise` tracks the same rupees for reconciliation and
+adding both would double them. A repeated gateway webhook cannot inflate
+either figure, since `providerPaymentId` and `providerRefundId` are uniquely
+indexed. Attempts that merely reached the gateway are reported separately and
+are never counted as revenue.
 | GET / PATCH | `/settings` |
 
 ## Catalog, venues and scheduling
@@ -308,7 +344,7 @@ gateway stops retrying.
 
 ### Tickets
 
-The QR encodes an opaque token � `<bookingId>.<nonce>.<hmac>` � carrying no
+The QR encodes an opaque token — `<bookingId>.<nonce>.<hmac>` — carrying no
 name, email or seat list, so a photographed ticket reveals nothing and cannot
 be altered into another booking's. `POST /api/v1/tickets/validate` admits once,
 using a conditional update, so two scanners reading the same code cannot both
@@ -319,7 +355,7 @@ let someone in. Staff may only admit at venues they manage.
 Cancelling and refunding are separate: cancelling releases seats and settles
 entitlement inside a transaction; the money moves afterwards, so a gateway
 failure cannot reverse a cancellation the customer has already been shown.
-Partial cancellation is supported � the remaining seats keep a valid ticket.
+Partial cancellation is supported — the remaining seats keep a valid ticket.
 
 Refund amounts come from the configurable policy in `PlatformSettings`: a grace
 window measured from booking time, then rules by hours before showtime.
@@ -334,7 +370,7 @@ Nothing is hardcoded. Financial history is never deleted.
 
 Both are safe to run on every instance and safe to run late: each operation is
 guarded so a delayed pass matches nothing once the data has moved on. The seat
-sweep is housekeeping, not the mechanism � an expired hold is already claimable,
+sweep is housekeeping, not the mechanism — an expired hold is already claimable,
 because the acquisition filter reclaims it on sight.
 
 ## Rate limiting

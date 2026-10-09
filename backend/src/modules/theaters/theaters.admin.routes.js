@@ -6,6 +6,7 @@ import * as service from './theaters.service.js';
 import * as requests from './theaterRequests.service.js';
 import {
   assignManagerSchema,
+  attachTheaterImageSchema,
   createLayoutSchema,
   createScreenSchema,
   createTheaterSchema,
@@ -14,7 +15,9 @@ import {
   rejectTheaterRequestSchema,
   reviewTheaterRequestSchema,
   screenIdSchema,
+  screenVersionParamsSchema,
   theaterIdSchema,
+  removeTheaterImageQuerySchema,
   updateScreenSchema,
   updateTheaterSchema,
 } from './theaters.validators.js';
@@ -118,6 +121,66 @@ adminTheatersRouter.post(
   asyncHandler(async (req, res) => {
     const layout = await service.createLayout(req.user, req.screen, req.body, req);
     res.status(201).json({ data: { layout } });
+  }),
+);
+
+/**
+ * Reading and activating a layout previously existed only in the show-runner
+ * namespace, so a super admin could create a seat map and then neither list it
+ * nor switch to it. The guards are the same as the create route's.
+ */
+adminTheatersRouter.get(
+  '/screens/:screenId/layouts',
+  validate({ params: screenIdSchema }),
+  requireScreenAccess(),
+  asyncHandler(async (req, res) => {
+    res.json({ data: { layouts: await service.listLayouts(req.screen._id) } });
+  }),
+);
+
+adminTheatersRouter.get(
+  '/screens/:screenId/layouts/:version',
+  validate({ params: screenVersionParamsSchema }),
+  requireScreenAccess(),
+  asyncHandler(async (req, res) => {
+    res.json({ data: { layout: await service.getLayout(req.screen._id, req.params.version) } });
+  }),
+);
+
+adminTheatersRouter.post(
+  '/screens/:screenId/layouts/:version/activate',
+  validate({ params: screenVersionParamsSchema }),
+  requireScreenAccess(),
+  asyncHandler(async (req, res) => {
+    const { layout } = await service.activateLayout(req.user, req.screen, req.params.version, req);
+    res.json({ data: { layout } });
+  }),
+);
+
+// --- Theater images ---------------------------------------------------------
+
+adminTheatersRouter.post(
+  '/theaters/:theaterId/images',
+  validate({ params: theaterIdSchema, body: attachTheaterImageSchema }),
+  requireTheaterAccess(),
+  asyncHandler(async (req, res) => {
+    const theater = await service.attachTheaterImage(req.user, req.theater, req.body, req);
+    res.status(201).json({ data: { theater } });
+  }),
+);
+
+adminTheatersRouter.delete(
+  '/theaters/:theaterId/images',
+  validate({ params: theaterIdSchema, query: removeTheaterImageQuerySchema }),
+  requireTheaterAccess(),
+  asyncHandler(async (req, res) => {
+    const theater = await service.removeTheaterImage(
+      req.user,
+      req.theater,
+      req.validatedQuery.publicId,
+      req,
+    );
+    res.json({ data: { theater } });
   }),
 );
 

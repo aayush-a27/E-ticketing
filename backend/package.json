@@ -15,7 +15,8 @@
     "bootstrap:admin": "node scripts/bootstrapSuperAdmin.js",
     "migrate:users": "node scripts/migrateLegacyUsers.js",
     "dev:db": "node scripts/devReplicaSet.js",
-    "dev:seed": "node scripts/devSeed.js"
+    "dev:seed": "node scripts/devSeed.js",
+    "backfill:booking-venue": "node scripts/backfillBookingVenue.js"
   },
   "dependencies": {
     "bcryptjs": "^3.0.2",

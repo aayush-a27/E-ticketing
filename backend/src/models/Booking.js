@@ -28,6 +28,19 @@ const bookingSchema = new mongoose.Schema(
     showId: { type: mongoose.Schema.Types.ObjectId, ref: 'Show', required: true },
     holdId: { type: mongoose.Schema.Types.ObjectId, ref: 'SeatHold' },
 
+    /**
+     * Copied from the show when the booking opens, so a venue's own bookings
+     * can be found without walking every show first. This is what the
+     * show-runner operations endpoints scope on: a query filtered here can
+     * never return another venue's bookings, whatever the client asks for.
+     *
+     * The snapshot above already carries the theater's name for display; this
+     * carries the identity for authorization and reporting.
+     */
+    theaterId: { type: mongoose.Schema.Types.ObjectId, ref: 'Theater', index: true },
+    screenId: { type: mongoose.Schema.Types.ObjectId, ref: 'Screen' },
+    movieId: { type: mongoose.Schema.Types.ObjectId, ref: 'Movie' },
+
     // Denormalized so a ticket survives a venue rename or a catalog change.
     snapshot: {
       movieTitle: { type: String, required: true },
@@ -93,6 +106,8 @@ bookingSchema.index({ userId: 1, createdAt: -1 });
 bookingSchema.index({ showId: 1, status: 1 });
 bookingSchema.index({ status: 1, createdAt: 1 });
 bookingSchema.index({ 'snapshot.startAt': -1 });
+// The operations console's default view: a venue's bookings, newest first.
+bookingSchema.index({ theaterId: 1, createdAt: -1 });
 
 bookingSchema.virtual('activeSeats').get(function activeSeats() {
   return this.seats.filter((seat) => !seat.cancelledAt);

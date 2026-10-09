@@ -8,6 +8,7 @@ import { ApiError } from '../../utils/ApiError.js';
 import { showRunnerTheatersRouter } from '../theaters/theaters.showRunner.routes.js';
 import { createShowsManagementRouter } from '../shows/shows.manage.routes.js';
 import { createInventoryRouter } from '../inventory/inventory.routes.js';
+import { createOperationsRouter } from '../operations/operations.routes.js';
 
 /**
  * Everything under here requires an authenticated, active show runner (gates
@@ -37,6 +38,17 @@ showRunnerRouter.get(
       },
     });
   }),
+);
+
+/**
+ * The same operations endpoints as the admin namespace, with two differences
+ * enforced in the query rather than the response: every read is restricted to
+ * the venues this runner is assigned, and customer email addresses come back
+ * masked. A runner with no assignment yet sees an empty console.
+ */
+showRunnerRouter.use(
+  '/',
+  createOperationsRouter({ scopeToTheaters: true, canSeeCustomerContact: false }),
 );
 
 showRunnerRouter.use('/', showRunnerTheatersRouter);
