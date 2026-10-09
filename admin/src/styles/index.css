@@ -1,0 +1,153 @@
+@import 'tailwindcss';
+
+/**
+ * CineReserve console.
+ *
+ * Deliberately not the customer app's palette. That one is a dark cinema
+ * foyer; this is a tool someone stares at for a whole shift, so the working
+ * area is light and quiet and the navigation carries the dark weight. Amber is
+ * the only brand colour, and it is used for the active rail, focus and primary
+ * actions — nowhere else.
+ */
+@theme {
+  /* Navigation and headers: near-black with a blue cast, not pure grey. */
+  --color-ink-950: #0b1120;
+  --color-ink-900: #0f172a;
+  --color-ink-800: #1b2436;
+  --color-ink-700: #2a3344;
+  --color-ink-600: #475569;
+  --color-ink-500: #64748b;
+  --color-ink-400: #94a3b8;
+  --color-ink-300: #cbd5e1;
+  --color-ink-200: #e2e8f0;
+  --color-ink-100: #eef2f7;
+  --color-ink-50: #f7f9fb;
+
+  /* The single brand accent, shared with the customer app. */
+  --color-brand: #b4802c;
+  --color-brand-strong: #96681f;
+  --color-brand-soft: #fdf6e8;
+  --color-brand-line: #e8d5ab;
+  /* Only for use on the dark rail, where the lighter tone is legible. */
+  --color-brand-on-dark: #d4a24c;
+
+  --color-good: #107a52;
+  --color-good-soft: #e7f6ef;
+  --color-warn: #a35a06;
+  --color-warn-soft: #fdf2e3;
+  --color-bad: #b3261e;
+  --color-bad-soft: #fdecea;
+  --color-info: #175cd3;
+  --color-info-soft: #eaf2fe;
+
+  --font-sans: 'Inter', ui-sans-serif, system-ui, sans-serif;
+  --font-mono: 'JetBrains Mono', ui-monospace, monospace;
+
+  --radius-card: 0.75rem;
+
+  --shadow-card: 0 1px 2px rgb(15 23 42 / 0.05), 0 1px 3px rgb(15 23 42 / 0.04);
+  --shadow-raised: 0 4px 12px rgb(15 23 42 / 0.07), 0 1px 3px rgb(15 23 42 / 0.05);
+  --shadow-overlay: 0 24px 48px -12px rgb(15 23 42 / 0.25);
+}
+
+@layer base {
+  *,
+  *::before,
+  *::after {
+    box-sizing: border-box;
+  }
+
+  html {
+    -webkit-text-size-adjust: 100%;
+  }
+
+  body {
+    margin: 0;
+    background-color: var(--color-ink-50);
+    color: var(--color-ink-900);
+    font-family: var(--font-sans);
+    font-size: 0.9375rem;
+    line-height: 1.55;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  /**
+   * One focus treatment everywhere, and it is never removed — only replaced
+   * with something at least as visible. Keyboard operation of a console that
+   * suspends accounts and cancels shows is not optional.
+   */
+  :focus-visible {
+    outline: 2px solid var(--color-brand);
+    outline-offset: 2px;
+    border-radius: 0.25rem;
+  }
+
+  /* Tabular figures so money and counts line up column to column. */
+  th,
+  td {
+    font-variant-numeric: tabular-nums;
+  }
+
+  [hidden] {
+    display: none !important;
+  }
+}
+
+@layer components {
+  .card {
+    background-color: #fff;
+    border: 1px solid var(--color-ink-200);
+    border-radius: var(--radius-card);
+    box-shadow: var(--shadow-card);
+  }
+
+  /* The shimmer used by every skeleton. */
+  .skeleton {
+    background-image: linear-gradient(
+      90deg,
+      var(--color-ink-200) 0%,
+      var(--color-ink-100) 50%,
+      var(--color-ink-200) 100%
+    );
+    background-size: 200% 100%;
+    animation: skeleton-sweep 1.4s ease-in-out infinite;
+  }
+
+  @keyframes skeleton-sweep {
+    from {
+      background-position: 200% 0;
+    }
+    to {
+      background-position: -200% 0;
+    }
+  }
+
+  /* Hides a scrollbar without disabling the scrolling itself. */
+  .scroll-quiet {
+    scrollbar-width: thin;
+    scrollbar-color: var(--color-ink-700) transparent;
+  }
+  .scroll-quiet::-webkit-scrollbar {
+    width: 6px;
+    height: 6px;
+  }
+  .scroll-quiet::-webkit-scrollbar-thumb {
+    background-color: var(--color-ink-700);
+    border-radius: 3px;
+  }
+  .scroll-quiet::-webkit-scrollbar-track {
+    background: transparent;
+  }
+}
+
+/* Honoured globally: nothing here conveys meaning through motion alone. */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}
