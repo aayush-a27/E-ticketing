@@ -1,0 +1,27 @@
+# dependencies
+node_modules/
+
+# environment — never commit real secrets
+.env
+.env.*
+!.env.example
+
+# build output
+dist/
+build/
+.vite/
+
+# logs
+*.log
+npm-debug.log*
+
+# test + coverage
+coverage/
+.vitest/
+
+# editor / OS
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/*
+!.vscode/extensions.json
