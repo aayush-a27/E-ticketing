@@ -52,6 +52,23 @@ const schema = z.object({
   CLOUDINARY_API_KEY: z.string().optional(),
   CLOUDINARY_API_SECRET: z.string().optional(),
 
+  // How often lapsed seat holds are swept up. Shorter makes the seat map
+  // fresher; correctness does not depend on it, because an expired hold is
+  // reclaimed on sight by the next customer who wants the seat.
+  SEAT_HOLD_SWEEP_INTERVAL_MS: z.coerce.number().int().min(5_000).max(300_000).default(30_000),
+  RECONCILE_INTERVAL_MS: z.coerce.number().int().min(10_000).max(900_000).default(60_000),
+
+  // Payments. `memory` simulates the gateway locally and in tests, so the
+  // project runs with no Razorpay account; `razorpay` needs the three below.
+  PAYMENT_PROVIDER: z.enum(['razorpay', 'memory']).default('memory'),
+  RAZORPAY_KEY_ID: z.string().optional(),
+  RAZORPAY_KEY_SECRET: z.string().optional(),
+  RAZORPAY_WEBHOOK_SECRET: z.string().optional(),
+
+  // Signs QR ticket tokens. Separate from the auth secrets so a ticket token
+  // can never be mistaken for a session.
+  TICKET_TOKEN_SECRET: z.string().min(32, 'TICKET_TOKEN_SECRET must be at least 32 characters'),
+
   // Read only by scripts/bootstrapSuperAdmin.js, which prompts when they are
   // absent. Never referenced by the running server.
   SUPER_ADMIN_EMAIL: z.string().optional(),

@@ -1,7 +1,6 @@
 import { expireHolds } from '../modules/seat-holds/seatHolds.service.js';
 import { logger } from '../utils/logger.js';
-
-const DEFAULT_INTERVAL_MS = 30_000;
+import { env } from '../config/env.js';
 
 let timer = null;
 let running = false;
@@ -18,7 +17,7 @@ let running = false;
  * state — so it needs no distributed lock. The in-process guard below only
  * stops one instance overlapping with itself on a slow pass.
  */
-export function startExpireHoldsJob({ intervalMs = DEFAULT_INTERVAL_MS } = {}) {
+export function startExpireHoldsJob({ intervalMs = env.SEAT_HOLD_SWEEP_INTERVAL_MS } = {}) {
   if (timer) return timer;
 
   const tick = async () => {

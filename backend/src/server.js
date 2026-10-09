@@ -4,6 +4,7 @@ import { connectDatabase, disconnectDatabase } from './config/database.js';
 import { transactionsAvailable } from './utils/withTransaction.js';
 import { logger } from './utils/logger.js';
 import { startExpireHoldsJob, stopExpireHoldsJob } from './jobs/expireHolds.job.js';
+import { startReconcileJob, stopReconcileJob } from './jobs/reconcile.job.js';
 
 async function start() {
   await connectDatabase();
@@ -27,6 +28,7 @@ async function start() {
   }
 
   startExpireHoldsJob();
+  startReconcileJob();
 
   const app = createApp();
   const server = app.listen(env.PORT, () => {
@@ -41,6 +43,7 @@ async function start() {
   const shutdown = async (signal) => {
     logger.info({ signal }, 'Shutting down');
     stopExpireHoldsJob();
+    stopReconcileJob();
     server.close(async (error) => {
       if (error) logger.error({ err: error }, 'Error while closing HTTP server');
       try {

@@ -28,6 +28,8 @@
     "mongoose": "^8.19.1",
     "pino": "^9.13.1",
     "pino-http": "^10.5.0",
+    "qrcode": "^1.5.4",
+    "razorpay": "^2.9.8",
     "zod": "^3.25.76"
   },
   "devDependencies": {

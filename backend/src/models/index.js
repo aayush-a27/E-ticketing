@@ -13,3 +13,8 @@ export { PlatformSettings, DEFAULT_SETTINGS } from './PlatformSettings.js';
 export { ShowSeat } from './ShowSeat.js';
 export { SeatHold } from './SeatHold.js';
 export { IdempotencyKey } from './IdempotencyKey.js';
+export { Booking } from './Booking.js';
+export { Payment } from './Payment.js';
+export { Refund } from './Refund.js';
+export { Cancellation } from './Cancellation.js';
+export { WebhookEvent } from './WebhookEvent.js';

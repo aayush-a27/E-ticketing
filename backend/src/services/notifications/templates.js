@@ -32,6 +32,30 @@ const templates = {
     body: `Hi ${name},\n\nWe are not able to approve your application at this time.\n\nReason: ${reason}\n\nYour CineReserve account is unaffected and you can still book tickets. You are welcome to apply again with updated details.\n\n— CineReserve`,
   }),
 
+  [NOTIFICATION_TYPES.BOOKING_CONFIRMED]: ({ reference, movieTitle, theaterName, startAt, seats }) => ({
+    subject: `Your tickets are confirmed — ${movieTitle}`,
+    body: `Booking ${reference} is confirmed.\n\n${movieTitle}\n${theaterName}\n${new Date(startAt).toUTCString()}\nSeats: ${seats}\n\nShow the QR code in your booking to get in.\n\n— CineReserve`,
+  }),
+
+  [NOTIFICATION_TYPES.PAYMENT_FAILED]: ({ reference, reason }) => ({
+    subject: 'Your payment did not go through',
+    body: `We could not complete the payment for booking ${reference}.\n\n${reason ?? 'The payment was declined.'}\n\nYour seats are held only while the timer runs, so try again soon or pick new seats.\n\n— CineReserve`,
+  }),
+
+  [NOTIFICATION_TYPES.BOOKING_CANCELLED]: ({ reference, refundPaise }) => ({
+    subject: `Booking ${reference} cancelled`,
+    body: `Booking ${reference} has been cancelled.\n\n${
+      refundPaise > 0
+        ? `A refund of ₹${(refundPaise / 100).toFixed(2)} is on its way and usually takes 5 to 7 working days.`
+        : 'No refund is due under the cancellation policy that applied.'
+    }\n\n— CineReserve`,
+  }),
+
+  [NOTIFICATION_TYPES.REFUND_COMPLETED]: ({ name, reference, amountPaise }) => ({
+    subject: 'Your refund has been processed',
+    body: `Hi ${name},\n\nA refund of ₹${(amountPaise / 100).toFixed(2)} for booking ${reference} has been sent to your original payment method. It usually appears within 5 to 7 working days.\n\n— CineReserve`,
+  }),
+
   [NOTIFICATION_TYPES.SHOW_RUNNER_SUSPENDED]: ({ name, reason }) => ({
     subject: 'Your show runner access has changed',
     body: `Hi ${name},\n\nShow runner access for your account has been suspended.\n\nReason: ${reason}\n\nExisting bookings at your venues are unaffected. Contact support to discuss reinstatement.\n\n— CineReserve`,

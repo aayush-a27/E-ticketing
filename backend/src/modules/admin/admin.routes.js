@@ -21,6 +21,7 @@ import {
 import { adminMoviesRouter } from '../movies/movies.admin.routes.js';
 import { adminTheatersRouter } from '../theaters/theaters.admin.routes.js';
 import { createShowsManagementRouter } from '../shows/shows.manage.routes.js';
+import { createInventoryRouter } from '../inventory/inventory.routes.js';
 import { uploadsRouter } from '../uploads/uploads.routes.js';
 import { settingsRouter } from './settings.routes.js';
 
@@ -111,5 +112,6 @@ adminRouter.get(
 adminRouter.use('/movies', adminMoviesRouter);
 adminRouter.use('/uploads', uploadsRouter);
 adminRouter.use('/settings', settingsRouter);
+adminRouter.use('/shows', createInventoryRouter());
 adminRouter.use('/shows', createShowsManagementRouter({ scopeToUser: false }));
 adminRouter.use('/', adminTheatersRouter);

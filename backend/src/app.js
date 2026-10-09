@@ -9,6 +9,7 @@ import { errorHandler } from './middleware/errorHandler.js';
 import { notFound } from './middleware/notFound.js';
 import { publicLimiter } from './middleware/rateLimiter.js';
 import { v1Router } from './routes/v1.js';
+import { webhooksRouter } from './modules/payments/webhooks.routes.js';
 import { ApiError } from './utils/ApiError.js';
 
 export function createApp() {
@@ -32,10 +33,18 @@ export function createApp() {
     }),
   );
 
+  app.use(requestContext);
+
+  /**
+   * Mounted before the JSON parser on purpose. A webhook signature is computed
+   * over the exact bytes the gateway sent; parsing and reserializing the body
+   * would change them and every signature would fail.
+   */
+  app.use('/api/v1/webhooks', webhooksRouter);
+
   app.use(express.json({ limit: '1mb' }));
   app.use(express.urlencoded({ extended: true, limit: '1mb' }));
   app.use(cookieParser());
-  app.use(requestContext);
 
   app.get('/health', async (_req, res) => {
     const state = mongoose.connection.readyState;

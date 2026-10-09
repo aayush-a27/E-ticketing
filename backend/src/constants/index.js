@@ -84,6 +84,96 @@ export const HOLD_STATUS = Object.freeze({
 
 export const HOLD_STATUS_VALUES = Object.freeze(Object.values(HOLD_STATUS));
 
+/**
+ * Booking lifecycle. Transitions are enforced in bookings.service.js, not
+ * merely documented: a confirmed booking can never return to pending_payment,
+ * and a late webhook cannot reopen an expired one.
+ */
+export const BOOKING_STATUS = Object.freeze({
+  PENDING_PAYMENT: 'pending_payment',
+  CONFIRMED: 'confirmed',
+  PAYMENT_FAILED: 'payment_failed',
+  EXPIRED: 'expired',
+  CANCELLATION_PENDING: 'cancellation_pending',
+  CANCELLED: 'cancelled',
+  // Paid, but the seats could not be given. Money is owed back.
+  UNFULFILLABLE: 'unfulfillable',
+});
+
+export const BOOKING_STATUS_VALUES = Object.freeze(Object.values(BOOKING_STATUS));
+
+/** Which booking states may follow which. Anything absent is refused. */
+export const BOOKING_TRANSITIONS = Object.freeze({
+  [BOOKING_STATUS.PENDING_PAYMENT]: [
+    BOOKING_STATUS.CONFIRMED,
+    BOOKING_STATUS.PAYMENT_FAILED,
+    BOOKING_STATUS.EXPIRED,
+    BOOKING_STATUS.UNFULFILLABLE,
+  ],
+  [BOOKING_STATUS.PAYMENT_FAILED]: [
+    BOOKING_STATUS.PENDING_PAYMENT,
+    BOOKING_STATUS.CONFIRMED,
+    BOOKING_STATUS.EXPIRED,
+    BOOKING_STATUS.UNFULFILLABLE,
+  ],
+  [BOOKING_STATUS.CONFIRMED]: [
+    BOOKING_STATUS.CANCELLATION_PENDING,
+    BOOKING_STATUS.CANCELLED,
+  ],
+  [BOOKING_STATUS.CANCELLATION_PENDING]: [
+    BOOKING_STATUS.CANCELLED,
+    BOOKING_STATUS.CONFIRMED,
+  ],
+  // Terminal.
+  [BOOKING_STATUS.EXPIRED]: [],
+  [BOOKING_STATUS.CANCELLED]: [],
+  [BOOKING_STATUS.UNFULFILLABLE]: [],
+});
+
+/** The booking's overall money state, as opposed to one attempt's. */
+export const PAYMENT_STATUS = Object.freeze({
+  PENDING: 'pending',
+  PAID: 'paid',
+  FAILED: 'failed',
+  REFUND_PENDING: 'refund_pending',
+  REFUNDED: 'refunded',
+  PARTIALLY_REFUNDED: 'partially_refunded',
+  REFUND_FAILED: 'refund_failed',
+});
+
+export const PAYMENT_STATUS_VALUES = Object.freeze(Object.values(PAYMENT_STATUS));
+
+/** One attempt at the gateway. */
+export const PAYMENT_ATTEMPT_STATUS = Object.freeze({
+  CREATED: 'created',
+  AUTHORIZED: 'authorized',
+  CAPTURED: 'captured',
+  FAILED: 'failed',
+  REFUNDED: 'refunded',
+});
+
+export const PAYMENT_ATTEMPT_STATUS_VALUES = Object.freeze(
+  Object.values(PAYMENT_ATTEMPT_STATUS),
+);
+
+export const CANCELLATION_STATUS = Object.freeze({
+  REQUESTED: 'requested',
+  APPROVED: 'approved',
+  REJECTED: 'rejected',
+  COMPLETED: 'completed',
+});
+
+export const CANCELLATION_STATUS_VALUES = Object.freeze(Object.values(CANCELLATION_STATUS));
+
+export const REFUND_STATUS = Object.freeze({
+  PENDING: 'pending',
+  PROCESSING: 'processing',
+  COMPLETED: 'completed',
+  FAILED: 'failed',
+});
+
+export const REFUND_STATUS_VALUES = Object.freeze(Object.values(REFUND_STATUS));
+
 export const REQUEST_STATUS = Object.freeze({
   PENDING: 'pending',
   APPROVED: 'approved',
@@ -142,6 +232,21 @@ export const AUDIT_ACTIONS = Object.freeze({
   SEATS_EXPIRED: 'seat_hold.expired',
   SEAT_BLOCKED: 'show_seat.blocked',
   SEAT_UNBLOCKED: 'show_seat.unblocked',
+
+  BOOKING_CREATED: 'booking.created',
+  BOOKING_CONFIRMED: 'booking.confirmed',
+  BOOKING_EXPIRED: 'booking.expired',
+  BOOKING_UNFULFILLABLE: 'booking.unfulfillable',
+  PAYMENT_INITIATED: 'payment.initiated',
+  PAYMENT_VERIFIED: 'payment.verified',
+  PAYMENT_FAILED: 'payment.failed',
+  WEBHOOK_RECEIVED: 'webhook.received',
+  CANCELLATION_REQUESTED: 'cancellation.requested',
+  CANCELLATION_COMPLETED: 'cancellation.completed',
+  REFUND_INITIATED: 'refund.initiated',
+  REFUND_COMPLETED: 'refund.completed',
+  REFUND_FAILED: 'refund.failed',
+  TICKET_ADMITTED: 'ticket.admitted',
 });
 
 /**
@@ -187,6 +292,20 @@ export const ERROR_CODES = Object.freeze({
   IDEMPOTENCY_KEY_REUSED: 'IDEMPOTENCY_KEY_REUSED',
   IDEMPOTENT_REQUEST_IN_PROGRESS: 'IDEMPOTENT_REQUEST_IN_PROGRESS',
   TRANSACTIONS_REQUIRED: 'TRANSACTIONS_REQUIRED',
+
+  BOOKING_NOT_FOUND: 'BOOKING_NOT_FOUND',
+  BOOKING_NOT_PAYABLE: 'BOOKING_NOT_PAYABLE',
+  INVALID_TRANSITION: 'INVALID_TRANSITION',
+  SIGNATURE_INVALID: 'SIGNATURE_INVALID',
+  AMOUNT_MISMATCH: 'AMOUNT_MISMATCH',
+  PAYMENT_NOT_CONFIRMED: 'PAYMENT_NOT_CONFIRMED',
+  PAYMENTS_NOT_CONFIGURED: 'PAYMENTS_NOT_CONFIGURED',
+  TICKET_INVALID: 'TICKET_INVALID',
+  TICKET_ALREADY_USED: 'TICKET_ALREADY_USED',
+  CANCELLATION_NOT_ELIGIBLE: 'CANCELLATION_NOT_ELIGIBLE',
+  CANCELLATION_DISABLED: 'CANCELLATION_DISABLED',
+  REFUND_ALREADY_EXISTS: 'REFUND_ALREADY_EXISTS',
+  COUPON_INVALID: 'COUPON_INVALID',
 });
 
 export const NOTIFICATION_TYPES = Object.freeze({
@@ -197,6 +316,10 @@ export const NOTIFICATION_TYPES = Object.freeze({
   APPLICATION_APPROVED: 'application_approved',
   APPLICATION_REJECTED: 'application_rejected',
   SHOW_RUNNER_SUSPENDED: 'show_runner_suspended',
+  BOOKING_CONFIRMED: 'booking_confirmed',
+  PAYMENT_FAILED: 'payment_failed',
+  BOOKING_CANCELLED: 'booking_cancelled',
+  REFUND_COMPLETED: 'refund_completed',
 });
 
 export const NOTIFICATION_STATUS = Object.freeze({

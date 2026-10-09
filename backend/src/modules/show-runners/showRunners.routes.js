@@ -7,6 +7,7 @@ import { Theater } from '../../models/Theater.js';
 import { ApiError } from '../../utils/ApiError.js';
 import { showRunnerTheatersRouter } from '../theaters/theaters.showRunner.routes.js';
 import { createShowsManagementRouter } from '../shows/shows.manage.routes.js';
+import { createInventoryRouter } from '../inventory/inventory.routes.js';
 
 /**
  * Everything under here requires an authenticated, active show runner (gates
@@ -39,4 +40,5 @@ showRunnerRouter.get(
 );
 
 showRunnerRouter.use('/', showRunnerTheatersRouter);
+showRunnerRouter.use('/shows', createInventoryRouter());
 showRunnerRouter.use('/shows', createShowsManagementRouter({ scopeToUser: true }));

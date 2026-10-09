@@ -74,6 +74,13 @@ The API is then on `http://localhost:4000`, health on `/health`.
 | `NOTIFICATION_TRANSPORT` | no | `console` | `console` \| `noop` |
 | `APP_PUBLIC_URL` | no | `http://localhost:5173` | Used to build links in notifications |
 | `MEDIA_PROVIDER` | no | `memory` | `memory` (no account needed) \| `cloudinary` |
+| `PAYMENT_PROVIDER` | no | `memory` | `memory` (simulated, free) \| `razorpay` |
+| `RAZORPAY_KEY_ID` | only for razorpay | — | Publishable; safe to send to a browser |
+| `RAZORPAY_KEY_SECRET` | only for razorpay | — | Never leaves the server |
+| `RAZORPAY_WEBHOOK_SECRET` | only for razorpay | — | From the dashboard's webhook settings |
+| `TICKET_TOKEN_SECRET` | **yes** | — | 32+ chars, different from the JWT secrets |
+| `SEAT_HOLD_SWEEP_INTERVAL_MS` | no | `30000` | How often lapsed holds are swept |
+| `RECONCILE_INTERVAL_MS` | no | `60000` | Abandoned bookings, refunds, notifications |
 | `CLOUDINARY_CLOUD_NAME` | only for cloudinary | â€” | From the Cloudinary dashboard |
 | `CLOUDINARY_API_KEY` | only for cloudinary | â€” | From the Cloudinary dashboard |
 | `CLOUDINARY_API_SECRET` | only for cloudinary | â€” | Never sent to a browser |
@@ -262,6 +269,73 @@ Success is `{ "data": ... }`; a list adds `{ "pagination": {...} }`. Errors are:
 
 Branch on `code`, never on `message`. Codes are listed in
 `src/constants/index.js`.
+
+## Booking, payment and tickets
+
+The path a customer walks, and what guards each step:
+
+```
+POST /api/v1/me/seat-holds                     take seats   (Idempotency-Key)
+POST /api/v1/me/bookings                       open a booking against the hold
+POST /api/v1/me/bookings/:id/payments          create a gateway order
+POST /api/v1/me/bookings/:id/payments/verify   verify the signature
+GET  /api/v1/me/bookings/:id/ticket            QR ticket, once confirmed
+```
+
+**The amount is never sent by the client.** It comes from the hold's price
+snapshot, which the server computed from the show's own price table. The
+browser's callback is treated as a hint; the signature check is the evidence.
+
+**One confirming transition.** Both the browser verification call and the
+webhook route into the same service, so a duplicate finds the booking already
+confirmed and does nothing. Confirmation converts the hold, marks the seats
+booked, captures the payment and issues the ticket in one transaction.
+
+**Payment that lands after the hold expired** is never confirmed over whoever
+holds the seats now. The booking becomes `unfulfillable` and the money is
+queued for return.
+
+### Webhooks
+
+`POST /api/v1/webhooks/razorpay` is mounted *before* the JSON body parser,
+because the signature is computed over the exact bytes the gateway sent.
+Parsing and reserializing would break every signature.
+
+Duplicates are handled by a unique index on `(provider, eventId)`: the event is
+stored before it is acted on, so a gateway that retries loses the race and the
+second delivery is a no-op. The endpoint returns 200 for duplicates so the
+gateway stops retrying.
+
+### Tickets
+
+The QR encodes an opaque token — `<bookingId>.<nonce>.<hmac>` — carrying no
+name, email or seat list, so a photographed ticket reveals nothing and cannot
+be altered into another booking's. `POST /api/v1/tickets/validate` admits once,
+using a conditional update, so two scanners reading the same code cannot both
+let someone in. Staff may only admit at venues they manage.
+
+### Cancellations and refunds
+
+Cancelling and refunding are separate: cancelling releases seats and settles
+entitlement inside a transaction; the money moves afterwards, so a gateway
+failure cannot reverse a cancellation the customer has already been shown.
+Partial cancellation is supported — the remaining seats keep a valid ticket.
+
+Refund amounts come from the configurable policy in `PlatformSettings`: a grace
+window measured from booking time, then rules by hours before showtime.
+Nothing is hardcoded. Financial history is never deleted.
+
+## Background jobs
+
+| Job | Interval | Does |
+| --- | --- | --- |
+| Seat hold sweep | `SEAT_HOLD_SWEEP_INTERVAL_MS` | Returns lapsed holds to the pool |
+| Reconciliation | `RECONCILE_INTERVAL_MS` | Expires abandoned bookings, retries pending refunds, flushes the notification outbox |
+
+Both are safe to run on every instance and safe to run late: each operation is
+guarded so a delayed pass matches nothing once the data has moved on. The seat
+sweep is housekeeping, not the mechanism — an expired hold is already claimable,
+because the acquisition filter reclaims it on sight.
 
 ## Rate limiting
 
