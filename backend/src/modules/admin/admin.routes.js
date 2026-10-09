@@ -1,0 +1,102 @@
+import { Router } from 'express';
+import { authenticate } from '../../middleware/authenticate.js';
+import { requireSuperAdmin } from '../../middleware/authorize.js';
+import { validate } from '../../middleware/validate.js';
+import { asyncHandler } from '../../utils/asyncHandler.js';
+import * as service from './admin.service.js';
+import * as applications from '../organizer-applications/applications.controller.js';
+import {
+  applicationIdSchema,
+  approveSchema,
+  listApplicationsSchema,
+  rejectSchema,
+} from '../organizer-applications/applications.validators.js';
+import {
+  listAuditSchema,
+  listUsersSchema,
+  updateShowRunnerStatusSchema,
+  updateUserStatusSchema,
+  userIdSchema,
+} from './admin.validators.js';
+
+export const adminRouter = Router();
+
+/**
+ * Both guards, on the whole namespace. The path prefix is organizational; this
+ * pair is what actually keeps everyone else out.
+ */
+adminRouter.use(authenticate, requireSuperAdmin);
+
+// --- Organizer applications -------------------------------------------------
+adminRouter.get(
+  '/organizer-applications',
+  validate({ query: listApplicationsSchema }),
+  applications.adminList,
+);
+adminRouter.get(
+  '/organizer-applications/:id',
+  validate({ params: applicationIdSchema }),
+  applications.adminGet,
+);
+adminRouter.post(
+  '/organizer-applications/:id/approve',
+  validate({ params: applicationIdSchema, body: approveSchema }),
+  applications.adminApprove,
+);
+adminRouter.post(
+  '/organizer-applications/:id/reject',
+  validate({ params: applicationIdSchema, body: rejectSchema }),
+  applications.adminReject,
+);
+
+// --- Users ------------------------------------------------------------------
+adminRouter.get(
+  '/users',
+  validate({ query: listUsersSchema }),
+  asyncHandler(async (req, res) => {
+    res.json(await service.listUsers(req.validatedQuery ?? {}));
+  }),
+);
+
+adminRouter.get(
+  '/users/:id',
+  validate({ params: userIdSchema }),
+  asyncHandler(async (req, res) => {
+    res.json({ data: await service.getUser(req.params.id) });
+  }),
+);
+
+adminRouter.patch(
+  '/users/:id/status',
+  validate({ params: userIdSchema, body: updateUserStatusSchema }),
+  asyncHandler(async (req, res) => {
+    res.json({ data: await service.updateUserStatus(req.user, req.params.id, req.body, req) });
+  }),
+);
+
+// --- Show runners -----------------------------------------------------------
+adminRouter.get(
+  '/show-runners',
+  asyncHandler(async (req, res) => {
+    res.json(await service.listShowRunners(req.query ?? {}));
+  }),
+);
+
+adminRouter.patch(
+  '/show-runners/:id/status',
+  validate({ params: userIdSchema, body: updateShowRunnerStatusSchema }),
+  asyncHandler(async (req, res) => {
+    res.json({
+      data: await service.updateShowRunnerStatus(req.user, req.params.id, req.body, req),
+    });
+  }),
+);
+
+// --- Audit ------------------------------------------------------------------
+adminRouter.get(
+  '/audit-logs',
+  validate({ query: listAuditSchema }),
+  asyncHandler(async (req, res) => {
+    res.json(await service.listAuditLogs(req.validatedQuery ?? {}));
+  }),
+);
