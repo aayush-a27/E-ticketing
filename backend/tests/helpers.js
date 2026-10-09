@@ -91,6 +91,33 @@ export function layoutPayload(overrides = {}) {
   };
 }
 
+/** 4 rows x 6 seats, for tests that need more than the 8-seat default. */
+export function bigLayoutPayload(overrides = {}) {
+  const seats = [];
+  for (const [rowIndex, row] of ['A', 'B', 'C', 'D'].entries()) {
+    for (let number = 1; number <= 6; number += 1) {
+      seats.push({
+        seatId: `${row}${number}`,
+        row,
+        number,
+        label: `${row}${number}`,
+        category: rowIndex < 2 ? 'Silver' : 'Gold',
+        x: number,
+        y: rowIndex,
+      });
+    }
+  }
+  return {
+    categories: [
+      { name: 'Silver', displayOrder: 1 },
+      { name: 'Gold', displayOrder: 2 },
+    ],
+    seats,
+    activate: true,
+    ...overrides,
+  };
+}
+
 export function moviePayload(overrides = {}) {
   return {
     title: 'The Long Afternoon',
@@ -140,7 +167,10 @@ export function showPayload({ movieId, screenId, ...overrides } = {}) {
  * Builds a published movie, a theater managed by `managerId`, a screen with an
  * active layout, and returns the ids — the starting point for most show tests.
  */
-export async function seedVenue(adminAgent, { managerId = null, city = 'Dehradun' } = {}) {
+export async function seedVenue(
+  adminAgent,
+  { managerId = null, city = 'Dehradun', layout = null } = {},
+) {
   const movieResponse = await adminAgent.post('/api/v1/admin/movies').send(moviePayload());
   const movieId = movieResponse.body.data.movie._id;
 
@@ -161,7 +191,9 @@ export async function seedVenue(adminAgent, { managerId = null, city = 'Dehradun
     .send({ name: 'Screen 1', formats: ['2D', '3D'] });
   const screenId = screenResponse.body.data.screen._id;
 
-  await adminAgent.post(`/api/v1/admin/screens/${screenId}/layouts`).send(layoutPayload());
+  await adminAgent
+    .post(`/api/v1/admin/screens/${screenId}/layouts`)
+    .send(layout ?? layoutPayload());
 
   return { movieId, theaterId, screenId };
 }

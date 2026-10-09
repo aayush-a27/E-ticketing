@@ -10,3 +10,6 @@ export { Screen } from './Screen.js';
 export { SeatLayout } from './SeatLayout.js';
 export { Show } from './Show.js';
 export { PlatformSettings, DEFAULT_SETTINGS } from './PlatformSettings.js';
+export { ShowSeat } from './ShowSeat.js';
+export { SeatHold } from './SeatHold.js';
+export { IdempotencyKey } from './IdempotencyKey.js';

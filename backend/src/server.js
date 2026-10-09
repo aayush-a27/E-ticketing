@@ -3,6 +3,7 @@ import { env } from './config/env.js';
 import { connectDatabase, disconnectDatabase } from './config/database.js';
 import { transactionsAvailable } from './utils/withTransaction.js';
 import { logger } from './utils/logger.js';
+import { startExpireHoldsJob, stopExpireHoldsJob } from './jobs/expireHolds.job.js';
 
 async function start() {
   await connectDatabase();
@@ -17,6 +18,16 @@ async function start() {
     );
   }
 
+  // Seat holds require real transactions; without them the server would accept
+  // bookings it cannot keep consistent.
+  if (!transactions) {
+    logger.error(
+      'Seat holds and bookings will refuse to run until MongoDB is a replica set.',
+    );
+  }
+
+  startExpireHoldsJob();
+
   const app = createApp();
   const server = app.listen(env.PORT, () => {
     logger.info(
@@ -29,6 +40,7 @@ async function start() {
   // is how half-applied changes happen.
   const shutdown = async (signal) => {
     logger.info({ signal }, 'Shutting down');
+    stopExpireHoldsJob();
     server.close(async (error) => {
       if (error) logger.error({ err: error }, 'Error while closing HTTP server');
       try {

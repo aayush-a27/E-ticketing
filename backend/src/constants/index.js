@@ -66,6 +66,24 @@ export const SEAT_KINDS = Object.freeze({
 
 export const SEAT_KIND_VALUES = Object.freeze(Object.values(SEAT_KINDS));
 
+export const SEAT_STATE = Object.freeze({
+  AVAILABLE: 'available',
+  HELD: 'held',
+  BOOKED: 'booked',
+  BLOCKED: 'blocked',
+});
+
+export const SEAT_STATE_VALUES = Object.freeze(Object.values(SEAT_STATE));
+
+export const HOLD_STATUS = Object.freeze({
+  ACTIVE: 'active',
+  RELEASED: 'released',
+  EXPIRED: 'expired',
+  CONVERTED: 'converted',
+});
+
+export const HOLD_STATUS_VALUES = Object.freeze(Object.values(HOLD_STATUS));
+
 export const REQUEST_STATUS = Object.freeze({
   PENDING: 'pending',
   APPROVED: 'approved',
@@ -117,6 +135,13 @@ export const AUDIT_ACTIONS = Object.freeze({
   SHOW_CANCELLED: 'show.cancelled',
 
   SETTINGS_UPDATED: 'platform_settings.updated',
+
+  INVENTORY_GENERATED: 'show_seat.inventory_generated',
+  SEATS_HELD: 'seat_hold.created',
+  SEATS_RELEASED: 'seat_hold.released',
+  SEATS_EXPIRED: 'seat_hold.expired',
+  SEAT_BLOCKED: 'show_seat.blocked',
+  SEAT_UNBLOCKED: 'show_seat.unblocked',
 });
 
 /**
@@ -151,6 +176,17 @@ export const ERROR_CODES = Object.freeze({
   MEDIA_NOT_CONFIGURED: 'MEDIA_NOT_CONFIGURED',
   MEDIA_UPLOAD_FAILED: 'MEDIA_UPLOAD_FAILED',
   SLUG_IN_USE: 'SLUG_IN_USE',
+
+  SEATS_UNAVAILABLE: 'SEATS_UNAVAILABLE',
+  SEAT_NOT_IN_SHOW: 'SEAT_NOT_IN_SHOW',
+  HOLD_NOT_FOUND: 'HOLD_NOT_FOUND',
+  HOLD_EXPIRED: 'HOLD_EXPIRED',
+  HOLD_LIMIT_EXCEEDED: 'HOLD_LIMIT_EXCEEDED',
+  SHOW_NOT_BOOKABLE: 'SHOW_NOT_BOOKABLE',
+  INVENTORY_MISSING: 'INVENTORY_MISSING',
+  IDEMPOTENCY_KEY_REUSED: 'IDEMPOTENCY_KEY_REUSED',
+  IDEMPOTENT_REQUEST_IN_PROGRESS: 'IDEMPOTENT_REQUEST_IN_PROGRESS',
+  TRANSACTIONS_REQUIRED: 'TRANSACTIONS_REQUIRED',
 });
 
 export const NOTIFICATION_TYPES = Object.freeze({

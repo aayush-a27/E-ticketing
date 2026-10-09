@@ -18,6 +18,8 @@ import { resolvePagination, paginated } from '../../utils/pagination.js';
 import { managedTheaterIds } from '../../middleware/requireTheaterAccess.js';
 import { getActiveLayout, getLayout } from '../theaters/theaters.service.js';
 import { calculatePricing } from '../../services/pricingService.js';
+import { withTransaction, withSession } from '../../utils/withTransaction.js';
+import { generateInventory, getSeatAvailability } from '../inventory/inventory.service.js';
 
 const DEFAULT_CLEANUP_MINUTES = 15;
 
@@ -307,21 +309,38 @@ export async function publishShow(actor, id, req) {
     );
   }
 
-  show.status = SHOW_STATUS.PUBLISHED;
-  show.publishedAt = new Date();
-  show.updatedBy = actor._id;
-  await show.save();
+  /**
+   * Publishing is what brings a show's seat inventory into existence, and the
+   * two must land together: a published show with no ShowSeat records would be
+   * bookable with nothing to book.
+   */
+  const inventory = await withTransaction(
+    async (session) => {
+      show.status = SHOW_STATUS.PUBLISHED;
+      show.publishedAt = new Date();
+      show.updatedBy = actor._id;
+      await show.save({ ...withSession(session) });
 
-  await recordAudit({
-    actor,
-    action: AUDIT_ACTIONS.SHOW_PUBLISHED,
-    resourceType: 'Show',
-    resourceId: show._id,
-    after: { status: show.status },
-    req,
-  });
+      const generated = await generateInventory(show, { session, actor, req });
 
-  return { show, unchanged: false };
+      await recordAudit(
+        {
+          actor,
+          action: AUDIT_ACTIONS.SHOW_PUBLISHED,
+          resourceType: 'Show',
+          resourceId: show._id,
+          after: { status: show.status, seatsGenerated: generated.inserted },
+          req,
+        },
+        session,
+      );
+
+      return generated;
+    },
+    { required: true },
+  );
+
+  return { show, unchanged: false, inventory };
 }
 
 export async function cancelShow(actor, id, { reason }, req) {
@@ -487,46 +506,15 @@ export async function getShow(id, { publicOnly = false } = {}) {
  * price for each category. Live availability joins this in Phase 4; until then
  * every seat reads as available.
  */
-export async function getSeatMap(showId, { publicOnly = true } = {}) {
+export async function getSeatMap(showId, { publicOnly = true, userId = null } = {}) {
   const filter = { _id: showId };
   if (publicOnly) filter.status = SHOW_STATUS.PUBLISHED;
 
   const show = await Show.findOne(filter);
   if (!show) throw ApiError.notFound('Show not found');
 
-  const layout = await SeatLayout.findOne({
-    screenId: show.screenId,
-    version: show.layoutVersion,
-  });
-  if (!layout) throw ApiError.notFound('Seat layout not found for this show');
-
-  const priceByCategory = Object.fromEntries(
-    show.pricing.map((item) => [item.category, item.basePaise]),
-  );
-
-  return {
-    showId: String(show._id),
-    layoutVersion: layout.version,
-    categories: layout.categories.map((category) => ({
-      name: category.name,
-      displayOrder: category.displayOrder,
-      color: category.color ?? null,
-      pricePaise: priceByCategory[category.name] ?? null,
-    })),
-    seats: layout.seats.map((seat) => ({
-      seatId: seat.seatId,
-      row: seat.row,
-      number: seat.number,
-      label: seat.label,
-      category: seat.category,
-      x: seat.x,
-      y: seat.y,
-      kind: seat.kind,
-      pricePaise: priceByCategory[seat.category] ?? null,
-      // Phase 4 replaces this with the real ShowSeat state.
-      state: seat.kind === SEAT_KINDS.SEAT && seat.isActive ? 'available' : 'unavailable',
-    })),
-  };
+  // Live state per seat, read from inventory rather than inferred.
+  return getSeatAvailability(show, { userId });
 }
 
 /**

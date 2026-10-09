@@ -1,6 +1,7 @@
 import { Router } from 'express';
 import { asyncHandler } from '../../utils/asyncHandler.js';
 import { validate } from '../../middleware/validate.js';
+import { optionalAuthenticate } from '../../middleware/authenticate.js';
 import * as service from './shows.service.js';
 import * as theaters from '../theaters/theaters.service.js';
 import { listShowsSchema, priceQuoteSchema, showIdSchema } from './shows.validators.js';
@@ -28,11 +29,19 @@ publicShowsRouter.get(
   }),
 );
 
+/**
+ * Live seat availability. Open to anonymous browsing; a signed-in customer
+ * additionally gets `heldByYou` so the client can keep its own selection
+ * highlighted after a refresh.
+ */
 publicShowsRouter.get(
   '/:id/seats',
+  optionalAuthenticate,
   validate({ params: showIdSchema }),
   asyncHandler(async (req, res) => {
-    res.json({ data: await service.getSeatMap(req.params.id) });
+    // Availability changes by the second; never let a cache answer this.
+    res.setHeader('Cache-Control', 'no-store');
+    res.json({ data: await service.getSeatMap(req.params.id, { userId: req.user?._id ?? null }) });
   }),
 );
 

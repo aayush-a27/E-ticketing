@@ -5,6 +5,7 @@ import { showRunnerRouter } from '../modules/show-runners/showRunners.routes.js'
 import { adminRouter } from '../modules/admin/admin.routes.js';
 import { publicMoviesRouter } from '../modules/movies/movies.routes.js';
 import { publicShowsRouter, publicPlacesRouter } from '../modules/shows/shows.routes.js';
+import { seatHoldsRouter } from '../modules/seat-holds/seatHolds.routes.js';
 
 export const v1Router = Router();
 
@@ -13,10 +14,10 @@ v1Router.get('/', (_req, res) => {
     data: {
       name: 'CineReserve API',
       version: 'v1',
-      phase: 'Phase 3 — catalog, venues and scheduling',
+      phase: 'Phase 4 — seat inventory and holds',
       namespaces: {
         public: ['/movies', '/shows', '/cities', '/theaters'],
-        customer: ['/me/organizer-applications'],
+        customer: ['/me/seat-holds', '/me/organizer-applications'],
         showRunner: ['/show-runner'],
         admin: ['/admin'],
       },
@@ -31,6 +32,7 @@ v1Router.use('/movies', publicMoviesRouter);
 v1Router.use('/shows', publicShowsRouter);
 v1Router.use('/', publicPlacesRouter);
 
+v1Router.use('/me/seat-holds', seatHoldsRouter);
 v1Router.use('/me/organizer-applications', organizerApplicationsRouter);
 v1Router.use('/show-runner', showRunnerRouter);
 v1Router.use('/admin', adminRouter);
