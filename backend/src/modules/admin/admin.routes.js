@@ -18,6 +18,11 @@ import {
   updateUserStatusSchema,
   userIdSchema,
 } from './admin.validators.js';
+import { adminMoviesRouter } from '../movies/movies.admin.routes.js';
+import { adminTheatersRouter } from '../theaters/theaters.admin.routes.js';
+import { createShowsManagementRouter } from '../shows/shows.manage.routes.js';
+import { uploadsRouter } from '../uploads/uploads.routes.js';
+import { settingsRouter } from './settings.routes.js';
 
 export const adminRouter = Router();
 
@@ -100,3 +105,11 @@ adminRouter.get(
     res.json(await service.listAuditLogs(req.validatedQuery ?? {}));
   }),
 );
+
+// --- Catalog, venues and scheduling ----------------------------------------
+// The super admin has platform-wide reach: no theater scoping is applied.
+adminRouter.use('/movies', adminMoviesRouter);
+adminRouter.use('/uploads', uploadsRouter);
+adminRouter.use('/settings', settingsRouter);
+adminRouter.use('/shows', createShowsManagementRouter({ scopeToUser: false }));
+adminRouter.use('/', adminTheatersRouter);

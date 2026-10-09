@@ -45,6 +45,13 @@ const schema = z.object({
   NOTIFICATION_TRANSPORT: z.enum(['console', 'noop']).default('console'),
   APP_PUBLIC_URL: z.string().default('http://localhost:5173'),
 
+  // Image storage. `memory` keeps the project runnable with no account and no
+  // cost; `cloudinary` needs all three credentials below.
+  MEDIA_PROVIDER: z.enum(['cloudinary', 'memory']).default('memory'),
+  CLOUDINARY_CLOUD_NAME: z.string().optional(),
+  CLOUDINARY_API_KEY: z.string().optional(),
+  CLOUDINARY_API_SECRET: z.string().optional(),
+
   // Read only by scripts/bootstrapSuperAdmin.js, which prompts when they are
   // absent. Never referenced by the running server.
   SUPER_ADMIN_EMAIL: z.string().optional(),

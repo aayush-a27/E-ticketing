@@ -2,10 +2,17 @@
 
 Movie ticketing backend. Express + Mongoose, plain JavaScript (ESM), no TypeScript.
 
-Phase 2 of the rebuild is implemented: configuration, database, authentication,
-the three roles, the authorization gates, the organizer application and approval
-workflow, audit logging, notifications and the bootstrap/migration scripts.
-Catalog, venues, inventory and payments arrive in Phases 3 to 5.
+Phases 2 and 3 of the rebuild are implemented:
+
+- **Phase 2** — configuration, database, authentication, the three roles, the
+  authorization gates, the organizer application and approval workflow, audit
+  logging, notifications, and the bootstrap/migration scripts.
+- **Phase 3** — the movie catalog with signed image uploads, theaters, venue
+  assignment, screens, versioned seat layouts, show scheduling with overlap
+  prevention, and server-side pricing with configurable fees and tax.
+
+Seat inventory and holds (Phase 4) and payments and bookings (Phase 5) are not
+built yet.
 
 ## Requirements
 
@@ -66,6 +73,10 @@ The API is then on `http://localhost:4000`, health on `/health`.
 | `RATE_LIMIT_SENSITIVE_MAX` | no | `30` | Applications, refresh, password change |
 | `NOTIFICATION_TRANSPORT` | no | `console` | `console` \| `noop` |
 | `APP_PUBLIC_URL` | no | `http://localhost:5173` | Used to build links in notifications |
+| `MEDIA_PROVIDER` | no | `memory` | `memory` (no account needed) \| `cloudinary` |
+| `CLOUDINARY_CLOUD_NAME` | only for cloudinary | — | From the Cloudinary dashboard |
+| `CLOUDINARY_API_KEY` | only for cloudinary | — | From the Cloudinary dashboard |
+| `CLOUDINARY_API_SECRET` | only for cloudinary | — | Never sent to a browser |
 | `LOG_LEVEL` | no | `info` | pino level |
 | `SUPER_ADMIN_EMAIL` / `_PASSWORD` / `_NAME` | no | — | Bootstrap script only; remove after the first run |
 
@@ -136,28 +147,110 @@ discarded before any code reads it.
 | GET | `/:id` | signed in (own only) |
 | POST | `/:id/withdraw` | signed in (own, pending only) |
 
+### Public catalog and browsing — no authentication
+
+| Method | Path | Returns |
+| --- | --- | --- |
+| GET | `/movies` | Published movies; filter by `genre`, `language`, `certification`, `featured`, `search` |
+| GET | `/movies/:slug` | One published movie |
+| GET | `/cities` | Cities with at least one active theater |
+| GET | `/theaters` | Active theaters; filter by `city` |
+| GET | `/shows` | Upcoming published shows; filter by `city`, `movieId`, `theaterId`, `date`, `language`, `format` |
+| GET | `/shows/:id` | One published show |
+| GET | `/shows/:id/seats` | Seat map for that show's layout version, with per-category prices |
+| POST | `/shows/:id/price-quote` | Server-computed total for a set of seat ids |
+
 ### Show runner — `/api/v1/show-runner`
 
-| Method | Path | Access |
-| --- | --- | --- |
-| GET | `/profile` | active show runner |
-
-### Admin — `/api/v1/admin`
+Requires an active show-runner profile. Every route that names a venue also
+checks that this user manages it.
 
 | Method | Path |
 | --- | --- |
-| GET | `/organizer-applications` |
-| GET | `/organizer-applications/:id` |
-| POST | `/organizer-applications/:id/approve` |
-| POST | `/organizer-applications/:id/reject` |
-| GET | `/users` |
-| GET | `/users/:id` |
-| PATCH | `/users/:id/status` |
-| GET | `/show-runners` |
-| PATCH | `/show-runners/:id/status` |
-| GET | `/audit-logs` |
+| GET | `/profile` |
+| GET | `/theaters` · `/theaters/:theaterId` |
+| PATCH | `/theaters/:theaterId` |
+| POST | `/theater-requests` · GET `/theater-requests` |
+| GET / POST | `/theaters/:theaterId/screens` |
+| PATCH | `/screens/:screenId` |
+| GET / POST | `/screens/:screenId/layouts` |
+| GET | `/screens/:screenId/layouts/:version` |
+| POST | `/screens/:screenId/layouts/:version/activate` |
+| GET / POST | `/shows` |
+| GET / PATCH | `/shows/:id` |
+| POST | `/shows/:id/publish` · `/shows/:id/cancel` |
 
-All of these require `super_admin`.
+### Admin — `/api/v1/admin`
+
+All of these require `super_admin` and are not scoped to any venue.
+
+| Method | Path |
+| --- | --- |
+| GET | `/organizer-applications` · `/organizer-applications/:id` |
+| POST | `/organizer-applications/:id/approve` · `/reject` |
+| GET | `/users` · `/users/:id` · PATCH `/users/:id/status` |
+| GET | `/show-runners` · PATCH `/show-runners/:id/status` |
+| GET | `/audit-logs` |
+| GET / POST | `/movies` · GET/PATCH `/movies/:id` |
+| POST | `/movies/:id/publish` · `/unpublish` · `/archive` · `/media` |
+| DELETE | `/movies/:id/media/:kind` |
+| POST | `/uploads/signature` |
+| GET / POST | `/theaters` · GET/PATCH `/theaters/:theaterId` |
+| POST | `/theaters/:theaterId/managers` · DELETE `/theaters/:theaterId/managers/:id` |
+| GET | `/theater-requests` · POST `/theater-requests/:id/approve` · `/reject` |
+| GET / POST | `/theaters/:theaterId/screens` · PATCH `/screens/:screenId` |
+| POST | `/screens/:screenId/layouts` |
+| GET / POST | `/shows` · GET/PATCH `/shows/:id` · POST `/shows/:id/publish` · `/cancel` |
+| GET / PATCH | `/settings` |
+
+## Catalog, venues and scheduling
+
+**Movies** belong to the platform. The super admin writes them; show runners
+schedule published ones and cannot create or publish catalog records.
+Publishing requires a poster, synopsis, languages, runtime and certification.
+
+**Images** use signed direct upload. The server issues a signature scoped to one
+folder and public id, the browser uploads straight to the provider, and the
+resource's media endpoint then asks the provider whether that asset really
+exists before storing anything. The API secret never reaches a browser and no
+file passes through this process. With `MEDIA_PROVIDER=memory` the same flow
+runs against an in-process store, so nothing here needs an account to develop
+against.
+
+**Theaters** are created and assigned by the super admin. A show runner cannot
+create one; they request access, and approval adds them to the theater's
+`managers`, which is what gate 4 checks.
+
+**Seat layouts are versioned, never edited.** A change creates a new version;
+the old one is retired but kept, because every show pins the version it was
+scheduled with. Switching the active version is refused while upcoming
+published shows still use the current one.
+
+**Shows** cannot overlap on a screen. The occupied window is the film's runtime
+plus a cleanup gap (15 minutes by default), and a new show whose window
+intersects an existing one is rejected with `SHOW_OVERLAP`. Cancelled shows
+free their slot. Once a seat is sold, start time, price, format and language are
+frozen; only the booking window can still move.
+
+## Pricing
+
+Every amount is an integer number of paise and is computed on the server from
+the show's own price table plus `PlatformSettings`. The client sends seat ids
+and receives a breakdown; it never sends an amount.
+
+Configurable through `PATCH /api/v1/admin/settings`:
+
+- **Fees** — a percentage of the ticket subtotal plus a flat amount per ticket,
+  with an optional per-booking cap.
+- **Tax** — a list of named components, each with its own rate, threshold and
+  whether it applies to tickets, fees or both. The threshold is tested per
+  ticket, which is how India's price-banded GST actually works, so a basket of
+  cheap tickets is not taxed just because it sums past the band.
+- **Cancellation** — a grace window after booking plus refund rules by hours
+  before showtime. Stored and evaluated as data; Phase 5 applies them.
+
+A show must price every seat category its layout contains, and may not price one
+it does not — otherwise a customer could select a seat the server cannot price.
 
 ### Response shapes
 

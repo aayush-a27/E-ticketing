@@ -64,6 +64,108 @@ export async function signInAs(userFactoryResult) {
   return signIn({ email: userFactoryResult.user.email, password: userFactoryResult.password });
 }
 
+/** A small layout: 2 rows x 4 seats, two categories, with one aisle column. */
+export function layoutPayload(overrides = {}) {
+  const seats = [];
+  for (const [rowIndex, row] of ['A', 'B'].entries()) {
+    for (let number = 1; number <= 4; number += 1) {
+      seats.push({
+        seatId: `${row}${number}`,
+        row,
+        number,
+        label: `${row}${number}`,
+        category: row === 'A' ? 'Silver' : 'Gold',
+        x: number <= 2 ? number : number + 1, // gap at x=3
+        y: rowIndex,
+      });
+    }
+  }
+  return {
+    categories: [
+      { name: 'Silver', displayOrder: 1 },
+      { name: 'Gold', displayOrder: 2 },
+    ],
+    seats,
+    activate: true,
+    ...overrides,
+  };
+}
+
+export function moviePayload(overrides = {}) {
+  return {
+    title: 'The Long Afternoon',
+    synopsis: 'A quiet film about a city, a train and the people who miss it every morning.',
+    languages: ['Hindi', 'English'],
+    releaseDate: '2026-09-01',
+    runtimeMinutes: 120,
+    certification: 'UA',
+    genres: ['Drama'],
+    ...overrides,
+  };
+}
+
+export function theaterPayload(overrides = {}) {
+  return {
+    name: 'Nova Cinemas Rajpur Road',
+    addressLine1: '12 Rajpur Road',
+    city: 'Dehradun',
+    state: 'Uttarakhand',
+    pincode: '248001',
+    amenities: ['Parking', 'Cafe'],
+    ...overrides,
+  };
+}
+
+/** A start time safely in the future, to avoid "must start in the future". */
+export function futureDate(hoursFromNow = 48) {
+  return new Date(Date.now() + hoursFromNow * 3_600_000).toISOString();
+}
+
+export function showPayload({ movieId, screenId, ...overrides } = {}) {
+  return {
+    movieId,
+    screenId,
+    startAt: futureDate(48),
+    language: 'Hindi',
+    format: '2D',
+    pricing: [
+      { category: 'Silver', basePaise: 15_000 },
+      { category: 'Gold', basePaise: 25_000 },
+    ],
+    ...overrides,
+  };
+}
+
+/**
+ * Builds a published movie, a theater managed by `managerId`, a screen with an
+ * active layout, and returns the ids — the starting point for most show tests.
+ */
+export async function seedVenue(adminAgent, { managerId = null, city = 'Dehradun' } = {}) {
+  const movieResponse = await adminAgent.post('/api/v1/admin/movies').send(moviePayload());
+  const movieId = movieResponse.body.data.movie._id;
+
+  const { memoryProvider } = await import('../src/services/media/providers.js');
+  const asset = memoryProvider.__seed(`poster-${movieId}`);
+  await adminAgent
+    .post(`/api/v1/admin/movies/${movieId}/media`)
+    .send({ kind: 'poster', publicId: asset.publicId });
+  await adminAgent.post(`/api/v1/admin/movies/${movieId}/publish`).send({});
+
+  const theaterResponse = await adminAgent
+    .post('/api/v1/admin/theaters')
+    .send(theaterPayload({ city, managerIds: managerId ? [String(managerId)] : [] }));
+  const theaterId = theaterResponse.body.data.theater._id;
+
+  const screenResponse = await adminAgent
+    .post(`/api/v1/admin/theaters/${theaterId}/screens`)
+    .send({ name: 'Screen 1', formats: ['2D', '3D'] });
+  const screenId = screenResponse.body.data.screen._id;
+
+  await adminAgent.post(`/api/v1/admin/screens/${screenId}/layouts`).send(layoutPayload());
+
+  return { movieId, theaterId, screenId };
+}
+
 export function validApplicationPayload(overrides = {}) {
   return {
     contactName: 'Asha Menon',

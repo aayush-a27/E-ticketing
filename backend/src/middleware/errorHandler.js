@@ -49,15 +49,20 @@ export function errorHandler(error, req, res, _next) {
   const normalized = normalize(error);
 
   if (!normalized) {
-    // Unexpected: log everything, tell the client nothing.
+    // Unexpected: log everything, tell the client nothing — except outside
+    // production, where the detail is what makes a failing test diagnosable.
     logger.error({ err: error, requestId: req.id, path: req.originalUrl }, 'Unhandled error');
-    return res.status(500).json({
+    const body = {
       error: {
         code: ERROR_CODES.INTERNAL_ERROR,
         message: 'Something went wrong',
         requestId: req.id,
       },
-    });
+    };
+    if (!isProduction) {
+      body.error.debug = { message: error?.message, stack: error?.stack };
+    }
+    return res.status(500).json(body);
   }
 
   if (normalized.statusCode >= 500) {
