@@ -45,3 +45,9 @@ export const sensitiveLimiter = buildLimiter({
   max: env.RATE_LIMIT_SENSITIVE_MAX,
   keyPrefix: 'sensitive',
 });
+
+/** Ticket scanning at a venue's door: high volume in a short burst. */
+export const gateLimiter = buildLimiter({
+  max: env.RATE_LIMIT_GATE_MAX,
+  keyPrefix: 'gate',
+});

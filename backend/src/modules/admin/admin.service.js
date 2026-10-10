@@ -122,6 +122,45 @@ export async function updateShowRunnerStatus(admin, userId, { status, reason }, 
       await user.save({ ...withSession(session) });
     }
 
+    /**
+     * Revocation ends the relationship, so the venue grants go with it.
+     * Leaving them in place would mean that if this person were approved again
+     * through a new application, every old theater would come back with them
+     * silently — and approval must never grant a venue on its own. Suspension
+     * keeps them, because a suspension is meant to be reversible.
+     */
+    let removedFromTheaters = [];
+    if (status === SHOW_RUNNER_STATUS.REVOKED) {
+      const held = await Theater.find({ managers: userId })
+        .select('_id name')
+        .session(session ?? null);
+      if (held.length > 0) {
+        await Theater.updateMany(
+          { managers: userId },
+          { $pull: { managers: userId } },
+          withSession(session),
+        );
+        removedFromTheaters = held.map((theater) => ({
+          id: String(theater._id),
+          name: theater.name,
+        }));
+        for (const theater of held) {
+          await recordAudit(
+            {
+              actor: admin,
+              action: AUDIT_ACTIONS.THEATER_MANAGER_REMOVED,
+              resourceType: 'Theater',
+              resourceId: theater._id,
+              before: { managerId: String(userId) },
+              reason: `Show runner access revoked: ${reason}`,
+              req,
+            },
+            session,
+          );
+        }
+      }
+    }
+
     const action =
       status === SHOW_RUNNER_STATUS.ACTIVE
         ? AUDIT_ACTIONS.SHOW_RUNNER_REINSTATED
@@ -155,7 +194,7 @@ export async function updateShowRunnerStatus(admin, userId, { status, reason }, 
       );
     }
 
-    return { profile, unchanged: false };
+    return { profile, unchanged: false, removedFromTheaters };
   });
 }
 

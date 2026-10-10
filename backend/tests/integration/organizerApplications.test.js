@@ -140,6 +140,36 @@ describe('reviewing applications', () => {
     return { customer, agent, id: created.body.data.application._id };
   }
 
+  it('shows the applicant the rejection reason but never the internal notes', async () => {
+    const { id, agent } = await pendingApplication('notes@example.com');
+    const admin = await createSuperAdmin({ email: 'notes-admin@example.com' });
+    const adminAgent = await signInAs(admin);
+
+    const rejected = await adminAgent
+      .post(`/api/v1/admin/organizer-applications/${id}/reject`)
+      .send({
+        rejectionReason: 'We could not verify the venue address.',
+        reviewNotes: 'Internal: address looked fabricated',
+      });
+    expect(rejected.status).toBe(200);
+
+    const one = await agent.get(`/api/v1/me/organizer-applications/${id}`);
+    const list = await agent.get('/api/v1/me/organizer-applications');
+    expect(one.status).toBe(200);
+    expect(list.status).toBe(200);
+
+    for (const application of [one.body.data.application, list.body.data.applications[0]]) {
+      expect(application.rejectionReason).toBe('We could not verify the venue address.');
+      expect(application).not.toHaveProperty('reviewNotes');
+      expect(application).not.toHaveProperty('reviewedBy');
+    }
+    expect(JSON.stringify(one.body)).not.toContain('fabricated');
+
+    // The administrator still sees them.
+    const adminView = await adminAgent.get(`/api/v1/admin/organizer-applications/${id}`);
+    expect(adminView.body.data.application.reviewNotes).toBe('Internal: address looked fabricated');
+  });
+
   it('refuses review endpoints to a customer', async () => {
     const { id, agent } = await pendingApplication();
 

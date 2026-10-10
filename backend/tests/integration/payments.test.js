@@ -8,6 +8,7 @@ import {
   signInAs,
   seedVenue,
   showPayload,
+  startShowSoon,
 } from '../helpers.js';
 import { Booking } from '../../src/models/Booking.js';
 import { Payment } from '../../src/models/Payment.js';
@@ -518,6 +519,7 @@ describe('tickets', () => {
 
   it('admits once at the gate and refuses a second scan', async () => {
     const { context, bookingId } = await confirmedBooking();
+    await startShowSoon(bookingId);
     const ticket = await context.agent.get(`/api/v1/me/bookings/${bookingId}/ticket`);
     const token = ticket.body.data.ticket.token;
 

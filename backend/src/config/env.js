@@ -41,6 +41,16 @@ const schema = z.object({
   RATE_LIMIT_PUBLIC_MAX: z.coerce.number().int().positive().default(300),
   RATE_LIMIT_AUTH_MAX: z.coerce.number().int().positive().default(10),
   RATE_LIMIT_SENSITIVE_MAX: z.coerce.number().int().positive().default(30),
+  // Gate scanning is a burst by nature: a venue admits its whole audience in
+  // the half hour before a show. The sensitive limit would lock door staff out
+  // after thirty tickets. Tokens are HMAC-signed, so a high limit gives a
+  // guesser nothing to work with.
+  RATE_LIMIT_GATE_MAX: z.coerce.number().int().positive().default(600),
+
+  // How early before the show a ticket may be admitted. Outside the window
+  // the scan is refused and the ticket is NOT marked used, so a ticket for
+  // another day cannot be burned by scanning it today.
+  GATE_OPENS_MINUTES_BEFORE: z.coerce.number().int().min(0).max(1440).default(90),
 
   NOTIFICATION_TRANSPORT: z.enum(['console', 'noop']).default('console'),
   APP_PUBLIC_URL: z.string().default('http://localhost:5173'),

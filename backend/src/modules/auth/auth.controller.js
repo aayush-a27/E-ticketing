@@ -95,6 +95,8 @@ export const me = asyncHandler(async (req, res) => {
         id: String(profile._id),
         businessName: profile.businessName,
         status: profile.status,
+        // Their own record: a suspended runner is told why, not just that.
+        statusReason: profile.status === 'active' ? null : (profile.statusReason ?? null),
         canOperate: profile.canOperate,
         operatingCities: profile.operatingCities,
         approvedAt: profile.approvedAt,

@@ -4,8 +4,9 @@ import { asyncHandler } from '../../utils/asyncHandler.js';
 import { validate } from '../../middleware/validate.js';
 import { authenticate } from '../../middleware/authenticate.js';
 import { requireActiveShowRunner } from '../../middleware/authorize.js';
-import { sensitiveLimiter } from '../../middleware/rateLimiter.js';
+import { gateLimiter } from '../../middleware/rateLimiter.js';
 import { ApiError } from '../../utils/ApiError.js';
+import { env } from '../../config/env.js';
 import {
   AUDIT_ACTIONS,
   BOOKING_STATUS,
@@ -22,12 +23,22 @@ const validateSchema = z.object({
   token: z.string().trim().min(32).max(200),
 });
 
+/** When a show's end time was never recorded, assume a long film. */
+const FALLBACK_RUN_MINUTES = 240;
+
 /**
  * Gate validation, for venue staff.
  *
- * Admission is single-use and recorded with a conditional update, so two
- * scanners reading the same QR code cannot both admit — the second is told the
- * ticket has already been used, and when.
+ * The checks run in an order that leaks nothing:
+ *
+ *   1. the signature, so a forged token learns nothing at all;
+ *   2. the venue, so staff at one theater cannot discover whether a ticket
+ *      for another theater was cancelled, refunded or already used;
+ *   3. the booking's state;
+ *   4. the time window, so a ticket for another day is refused without being
+ *      spent;
+ *   5. admission itself, as a conditional update — two scanners reading the
+ *      same QR code cannot both admit. The second is told when the first did.
  */
 export const ticketsRouter = Router();
 
@@ -35,7 +46,7 @@ ticketsRouter.use(authenticate, requireActiveShowRunner);
 
 ticketsRouter.post(
   '/validate',
-  sensitiveLimiter,
+  gateLimiter,
   validate({ body: validateSchema }),
   asyncHandler(async (req, res) => {
     const decoded = verifyTicketToken(req.body.token);
@@ -45,7 +56,23 @@ ticketsRouter.post(
 
     const booking = await Booking.findById(decoded.bookingId);
     if (!booking || booking.ticketToken !== req.body.token) {
+      // A cancelled booking has its token cleared, so it lands here too: a
+      // cancelled ticket reads the same as a forged one, which is right.
       throw new ApiError(400, ERROR_CODES.TICKET_INVALID, 'This ticket is not valid');
+    }
+
+    // Staff may only admit at venues they manage — checked before anything
+    // about the booking's state is revealed.
+    if (req.user.role !== ROLES.SUPER_ADMIN) {
+      const theaterId =
+        booking.theaterId ?? (await Show.findById(booking.showId).select('theaterId'))?.theaterId;
+      const theater = theaterId ? await Theater.findById(theaterId) : null;
+      if (!theater?.isManagedBy(req.user._id)) {
+        throw ApiError.forbidden(
+          'This ticket is for a venue you do not manage',
+          ERROR_CODES.NOT_THEATER_MANAGER,
+        );
+      }
     }
 
     if (booking.status !== BOOKING_STATUS.CONFIRMED) {
@@ -56,30 +83,62 @@ ticketsRouter.post(
       );
     }
 
-    // Staff may only admit at venues they manage.
-    if (req.user.role !== ROLES.SUPER_ADMIN) {
-      const show = await Show.findById(booking.showId).select('theaterId');
-      const theater = await Theater.findById(show.theaterId);
-      if (!theater?.isManagedBy(req.user._id)) {
-        throw ApiError.forbidden(
-          'This ticket is for a venue you do not manage',
-          ERROR_CODES.NOT_THEATER_MANAGER,
-        );
-      }
+    if (booking.admittedAt) {
+      throw new ApiError(
+        409,
+        ERROR_CODES.TICKET_ALREADY_USED,
+        `This ticket was already used at ${booking.admittedAt.toISOString()}`,
+        [{ field: 'admittedAt', message: booking.admittedAt.toISOString() }],
+      );
+    }
+
+    /**
+     * The window: from GATE_OPENS_MINUTES_BEFORE before the show until it
+     * ends. Refused scans do not touch the booking, so the ticket still works
+     * at the right time.
+     */
+    const now = Date.now();
+    const startAt = new Date(booking.snapshot.startAt).getTime();
+    const endAt = booking.snapshot.endAt
+      ? new Date(booking.snapshot.endAt).getTime()
+      : startAt + FALLBACK_RUN_MINUTES * 60_000;
+    const opensAt = startAt - env.GATE_OPENS_MINUTES_BEFORE * 60_000;
+
+    if (now < opensAt) {
+      throw new ApiError(
+        409,
+        ERROR_CODES.TICKET_NOT_YET_VALID,
+        `This ticket is for a show starting ${new Date(startAt).toISOString()}. Entry opens ${env.GATE_OPENS_MINUTES_BEFORE} minutes before.`,
+        [{ field: 'startAt', message: new Date(startAt).toISOString() }],
+      );
+    }
+    if (now > endAt) {
+      throw new ApiError(
+        409,
+        ERROR_CODES.TICKET_SHOW_ENDED,
+        `This ticket was for a show that ended ${new Date(endAt).toISOString()}.`,
+        [{ field: 'startAt', message: new Date(startAt).toISOString() }],
+      );
     }
 
     const admitted = await Booking.findOneAndUpdate(
-      { _id: booking._id, admittedAt: null },
+      { _id: booking._id, admittedAt: null, status: BOOKING_STATUS.CONFIRMED },
       { admittedAt: new Date(), admittedBy: req.user._id },
       { new: true },
     );
 
     if (!admitted) {
-      throw new ApiError(
-        409,
-        ERROR_CODES.TICKET_ALREADY_USED,
-        `This ticket was already used at ${booking.admittedAt.toISOString()}`,
-      );
+      // Lost a race with another scanner, or the booking changed underneath.
+      const current = await Booking.findById(booking._id).select('admittedAt status');
+      if (current?.admittedAt) {
+        throw new ApiError(
+          409,
+          ERROR_CODES.TICKET_ALREADY_USED,
+          `This ticket was already used at ${current.admittedAt.toISOString()}`,
+          [{ field: 'admittedAt', message: current.admittedAt.toISOString() }],
+        );
+      }
+      throw new ApiError(400, ERROR_CODES.TICKET_INVALID, 'This ticket is no longer valid');
     }
 
     await recordAudit({
@@ -87,7 +146,7 @@ ticketsRouter.post(
       action: AUDIT_ACTIONS.TICKET_ADMITTED,
       resourceType: 'Booking',
       resourceId: booking._id,
-      after: { reference: booking.reference, seats: booking.seats.length },
+      after: { reference: booking.reference, seats: booking.activeSeats.length },
       req,
     });
 
@@ -96,6 +155,7 @@ ticketsRouter.post(
         valid: true,
         reference: admitted.reference,
         movieTitle: admitted.snapshot.movieTitle,
+        theaterName: admitted.snapshot.theaterName,
         screenName: admitted.snapshot.screenName,
         startAt: admitted.snapshot.startAt,
         seats: admitted.activeSeats.map((seat) => seat.label),

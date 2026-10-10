@@ -71,21 +71,36 @@ settingsRouter.patch(
   '/',
   validate({ body: updateSettingsSchema }),
   asyncHandler(async (req, res) => {
-    const before = await getSettings({ fresh: true });
-    const snapshot = {
-      fees: before.fees?.toObject?.() ?? before.fees,
-      taxComponents: before.taxComponents,
-    };
+    /**
+     * Every section that can change is recorded before and after. The refund
+     * policy decides how much money goes back to customers, so a change to it
+     * must be as traceable as a change to fees — the audit entry previously
+     * captured fees and tax only.
+     */
+    const plain = (value) => (value?.toObject ? value.toObject() : value);
+    const sections = (settings) => ({
+      fees: plain(settings.fees),
+      taxComponents: (settings.taxComponents ?? []).map(plain),
+      cancellation: plain(settings.cancellation),
+      seatHold: plain(settings.seatHold),
+    });
 
+    const before = sections(await getSettings({ fresh: true }));
     const settings = await updateSettings({ ...req.body, updatedBy: req.user._id });
+    const after = sections(settings);
+
+    // Only the sections this request touched, so the log reads as a change.
+    const touched = Object.keys(req.body);
+    const pick = (snapshot) =>
+      Object.fromEntries(touched.map((key) => [key, snapshot[key]]));
 
     await recordAudit({
       actor: req.user,
       action: AUDIT_ACTIONS.SETTINGS_UPDATED,
       resourceType: 'PlatformSettings',
       resourceId: settings._id,
-      before: snapshot,
-      after: { fees: settings.fees, taxComponents: settings.taxComponents },
+      before: pick(before),
+      after: pick(after),
       req,
     });
 

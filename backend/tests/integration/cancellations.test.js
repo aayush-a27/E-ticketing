@@ -7,6 +7,7 @@ import {
   seedVenue,
   showPayload,
   futureDate,
+  startShowSoon,
 } from '../helpers.js';
 import { Booking } from '../../src/models/Booking.js';
 import { Refund } from '../../src/models/Refund.js';
@@ -298,6 +299,7 @@ describe('cancelling a booking', () => {
     const ticket = await context.agent.get(`/api/v1/me/bookings/${context.bookingId}/ticket`);
     expect(ticket.status).toBe(200);
 
+    await startShowSoon(context.bookingId);
     const scan = await context.runnerAgent
       .post('/api/v1/tickets/validate')
       .send({ token: ticket.body.data.ticket.token });

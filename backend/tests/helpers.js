@@ -217,3 +217,20 @@ export function validApplicationPayload(overrides = {}) {
     ...overrides,
   };
 }
+
+/**
+ * Moves a booking's showtime so it starts `minutesFromNow` from now, which puts
+ * it inside the gate's entry window. Tests that scan tickets need this: shows
+ * are scheduled days ahead, and the gate rightly refuses a ticket for another
+ * day.
+ */
+export async function startShowSoon(bookingId, { minutesFromNow = 30, runMinutes = 150 } = {}) {
+  const { Booking } = await import('../src/models/Booking.js');
+  const startAt = new Date(Date.now() + minutesFromNow * 60_000);
+  const endAt = new Date(startAt.getTime() + runMinutes * 60_000);
+  await Booking.updateOne(
+    { _id: bookingId },
+    { $set: { 'snapshot.startAt': startAt, 'snapshot.endAt': endAt } },
+  );
+  return { startAt, endAt };
+}
