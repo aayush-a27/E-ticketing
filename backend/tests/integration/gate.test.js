@@ -245,3 +245,97 @@ describe('show runners: revocation and suspension', () => {
     expect((await agent.get('/api/v1/show-runner/theaters')).status).toBe(403);
   });
 });
+
+describe('finance: periods follow when money moved', () => {
+  it('counts a payment in the period it was captured, not when it was started', async () => {
+    const context = await ticketFor();
+    const { Payment } = await import('../../src/models/Payment.js');
+    const mongoose = (await import('mongoose')).default;
+
+    // Started two days ago, captured just now. createdAt is immutable in
+    // Mongoose, so the raw collection is used to backdate it.
+    await Payment.collection.updateOne(
+      { bookingId: new mongoose.Types.ObjectId(String(context.bookingId)) },
+      { $set: { createdAt: new Date(Date.now() - 2 * 86_400_000) } },
+    );
+
+    const lastHour = new Date(Date.now() - 3_600_000).toISOString();
+    const inside = await context.adminAgent.get(`/api/v1/admin/finance/summary?from=${lastHour}`);
+    expect(inside.body.data.summary.collected.count).toBe(1);
+
+    const yesterday = new Date(Date.now() - 86_400_000).toISOString();
+    const before = await context.adminAgent.get(`/api/v1/admin/finance/summary?to=${yesterday}`);
+    expect(before.body.data.summary.collected.count).toBe(0);
+  });
+});
+
+describe('dashboard: days are the platform’s days', () => {
+  it('buckets the trend by the configured timezone', async () => {
+    const context = await ticketFor();
+    const response = await context.adminAgent.get('/api/v1/admin/dashboard');
+    const { trend } = response.body.data;
+
+    const today = new Intl.DateTimeFormat('en-CA', {
+      timeZone: 'Asia/Kolkata',
+      year: 'numeric',
+      month: '2-digit',
+      day: '2-digit',
+    }).format(new Date());
+
+    expect(trend.timezone).toBe('Asia/Kolkata');
+    expect(trend.series).toHaveLength(14);
+    expect(trend.series.at(-1).date).toBe(today);
+    expect(trend.series.at(-1).bookings).toBe(1);
+  });
+});
+
+describe('venue requests: approval is all or nothing', () => {
+  it('leaves the request pending and creates nothing if assignment is refused', async () => {
+    const admin = await createSuperAdmin({ email: `admin-${unique()}@example.com` });
+    const adminAgent = await signInAs(admin);
+    const runner = await createShowRunner({ email: `runner-${unique()}@example.com` });
+    const runnerAgent = await signInAs(runner);
+
+    const proposalName = `Proposed Hall ${unique()}`;
+    const submitted = await runnerAgent.post('/api/v1/show-runner/theater-requests').send({
+      proposedTheater: {
+        name: proposalName,
+        addressLine1: '7 Test Road',
+        city: 'Dehradun',
+        state: 'Uttarakhand',
+        pincode: '248001',
+      },
+      justification: 'We are opening a new single-screen venue.',
+    });
+    expect(submitted.status).toBe(201);
+    const requestId = submitted.body.data.request._id;
+
+    // The runner is suspended before the request is reviewed.
+    await adminAgent
+      .patch(`/api/v1/admin/show-runners/${runner.user._id}/status`)
+      .send({ status: 'suspended', reason: 'Documents under review' });
+
+    const approved = await adminAgent
+      .post(`/api/v1/admin/theater-requests/${requestId}/approve`)
+      .send({ decisionNotes: 'Looks fine' });
+    expect(approved.status).toBe(400);
+
+    const { TheaterRequest } = await import('../../src/models/TheaterRequest.js');
+    const { Theater } = await import('../../src/models/Theater.js');
+    const stored = await TheaterRequest.findById(requestId);
+    expect(stored.status).toBe('pending');
+    expect(stored.theaterId ?? null).toBeNull();
+    expect(await Theater.countDocuments({ name: proposalName })).toBe(0);
+
+    // Reinstated, the same request goes through in full.
+    await adminAgent
+      .patch(`/api/v1/admin/show-runners/${runner.user._id}/status`)
+      .send({ status: 'active', reason: 'Documents verified' });
+    const retried = await adminAgent
+      .post(`/api/v1/admin/theater-requests/${requestId}/approve`)
+      .send({ decisionNotes: 'Verified' });
+    expect(retried.status).toBe(200);
+    expect(retried.body.data.theater.name).toBe(proposalName);
+    expect(retried.body.data.theater.managers.map(String)).toContain(String(runner.user._id));
+  });
+});

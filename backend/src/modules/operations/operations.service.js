@@ -38,6 +38,7 @@ import {
 } from '../../constants/index.js';
 import { managedTheaterIds } from '../../middleware/requireTheaterAccess.js';
 import { paginated, resolvePagination } from '../../utils/pagination.js';
+import { getSettings } from '../../services/settingsService.js';
 
 /** Trend window for the dashboard chart. */
 const TREND_DAYS = 14;
@@ -332,6 +333,49 @@ function scopeByBookingStages(theaterIds) {
   ];
 }
 
+/**
+ * Dates each record by the moment that matters for money, not by when it was
+ * first written. A payment started at 23:55 and captured at 00:02 belongs to
+ * the day it was captured; a refund requested on Monday and completed on
+ * Wednesday went out on Wednesday. Filtering on createdAt put both in the
+ * wrong period at every boundary.
+ *
+ * Returns stages that add `effectiveAt` and keep only records inside the
+ * window, or nothing when no window was asked for.
+ */
+function effectiveWindowStages(cases, fallback, window) {
+  if (!window.from && !window.to) return [];
+  return [
+    {
+      $addFields: {
+        effectiveAt: {
+          $switch: {
+            branches: cases.map(([status, field]) => ({
+              case: { $eq: ['$status', status] },
+              then: { $ifNull: [`$${field}`, `$${fallback}`] },
+            })),
+            default: `$${fallback}`,
+          },
+        },
+      },
+    },
+    { $match: dateRangeMatch('effectiveAt', window) },
+  ];
+}
+
+const PAYMENT_SETTLED_AT = [
+  [PAYMENT_ATTEMPT_STATUS.CAPTURED, 'capturedAt'],
+  [PAYMENT_ATTEMPT_STATUS.FAILED, 'failedAt'],
+];
+const REFUND_SETTLED_AT = [
+  [REFUND_STATUS.COMPLETED, 'processedAt'],
+  [REFUND_STATUS.FAILED, 'failedAt'],
+];
+const BOOKING_SETTLED_AT = [
+  [BOOKING_STATUS.CONFIRMED, 'confirmedAt'],
+  [BOOKING_STATUS.CANCELLED, 'cancelledAt'],
+];
+
 function dateRangeMatch(field, { from, to }) {
   if (!from && !to) return {};
   return {
@@ -376,7 +420,7 @@ export async function getFinanceSummary(actor, query, { scoped }) {
 
   const [paymentRows, refundRows, bookingRows, taxRows] = await Promise.all([
     Payment.aggregate([
-      { $match: dateRangeMatch('createdAt', window) },
+      ...effectiveWindowStages(PAYMENT_SETTLED_AT, 'createdAt', window),
       ...scopeByBookingStages(scopeIds),
       {
         $group: {
@@ -387,7 +431,7 @@ export async function getFinanceSummary(actor, query, { scoped }) {
       },
     ]),
     Refund.aggregate([
-      { $match: dateRangeMatch('createdAt', window) },
+      ...effectiveWindowStages(REFUND_SETTLED_AT, 'createdAt', window),
       ...scopeByBookingStages(scopeIds),
       {
         $group: {
@@ -399,12 +443,8 @@ export async function getFinanceSummary(actor, query, { scoped }) {
     ]),
     // Booked value and what is still unpaid, straight from the bookings.
     Booking.aggregate([
-      {
-        $match: {
-          ...(scopeIds ? { theaterId: { $in: scopeIds } } : {}),
-          ...dateRangeMatch('createdAt', window),
-        },
-      },
+      { $match: scopeIds ? { theaterId: { $in: scopeIds } } : {} },
+      ...effectiveWindowStages(BOOKING_SETTLED_AT, 'createdAt', window),
       {
         $group: {
           _id: '$status',
@@ -422,7 +462,8 @@ export async function getFinanceSummary(actor, query, { scoped }) {
         $match: {
           ...(scopeIds ? { theaterId: { $in: scopeIds } } : {}),
           status: BOOKING_STATUS.CONFIRMED,
-          ...dateRangeMatch('createdAt', window),
+          // Tax is collected when the booking is confirmed.
+          ...dateRangeMatch('confirmedAt', window),
         },
       },
       { $unwind: '$pricing.taxes' },
@@ -545,10 +586,15 @@ export async function listRefunds(actor, query, { scoped }) {
 
 // --- Dashboard --------------------------------------------------------------
 
-function startOfDayUTC(date) {
-  const copy = new Date(date);
-  copy.setUTCHours(0, 0, 0, 0);
-  return copy;
+/** "2026-10-10" for an instant, as the calendar reads in `timeZone`. */
+function dayKeyIn(date, timeZone) {
+  // en-CA formats as YYYY-MM-DD, which is also the key $dateToString makes.
+  return new Intl.DateTimeFormat('en-CA', {
+    timeZone,
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+  }).format(date);
 }
 
 /**
@@ -563,7 +609,17 @@ export async function getDashboard(actor, { scoped }) {
   const venueMatch = theaterIds === null ? {} : { theaterId: { $in: theaterIds } };
   const showMatch = theaterIds === null ? {} : { theaterId: { $in: theaterIds } };
   const now = new Date();
-  const trendFrom = startOfDayUTC(new Date(now.getTime() - (TREND_DAYS - 1) * 86_400_000));
+  /**
+   * Days are the platform's own days. Bucketing by UTC made "today" begin at
+   * 05:30 in India, so an evening's bookings were split across two bars. The
+   * query reaches back a day further than needed and the buckets are then
+   * matched by local date key, which stays right across any offset.
+   */
+  const timeZone = (await getSettings())?.defaultTimezone || 'Asia/Kolkata';
+  const trendKeys = Array.from({ length: TREND_DAYS }, (_, index) =>
+    dayKeyIn(new Date(now.getTime() - (TREND_DAYS - 1 - index) * 86_400_000), timeZone),
+  );
+  const trendFrom = new Date(now.getTime() - (TREND_DAYS + 1) * 86_400_000);
 
   const [
     bookingsByStatus,
@@ -627,7 +683,7 @@ export async function getDashboard(actor, { scoped }) {
       },
       {
         $group: {
-          _id: { $dateToString: { format: '%Y-%m-%d', date: '$confirmedAt', timezone: 'UTC' } },
+          _id: { $dateToString: { format: '%Y-%m-%d', date: '$confirmedAt', timezone: timeZone } },
           bookings: { $sum: 1 },
           bookedValuePaise: { $sum: '$amountPaise' },
         },
@@ -662,17 +718,14 @@ export async function getDashboard(actor, { scoped }) {
 
   // Fill the gaps so the chart has a point for every day, not just busy ones.
   const trendByDate = new Map(trend.map((row) => [row._id, row]));
-  const series = [];
-  for (let offset = 0; offset < TREND_DAYS; offset += 1) {
-    const day = new Date(trendFrom.getTime() + offset * 86_400_000);
-    const key = day.toISOString().slice(0, 10);
+  const series = trendKeys.map((key) => {
     const row = trendByDate.get(key);
-    series.push({
+    return {
       date: key,
       bookings: row?.bookings ?? 0,
       bookedValuePaise: row?.bookedValuePaise ?? 0,
-    });
-  }
+    };
+  });
 
   return {
     scope: theaterIds === null ? 'platform' : 'theaters',
@@ -721,7 +774,7 @@ export async function getDashboard(actor, { scoped }) {
         : null,
       screen: show.screenId ? show.screenId.name : null,
     })),
-    trend: { days: TREND_DAYS, basis: 'confirmedAt', series },
+    trend: { days: TREND_DAYS, basis: 'confirmedAt', timezone: timeZone, series },
   };
 }
 

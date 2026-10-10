@@ -76,69 +76,83 @@ export async function listRequests(query) {
  * theater is created first, then assigned. Either way it is one transaction.
  */
 export async function approveRequest(admin, id, { decisionNotes }, req) {
-  const outcome = await withTransaction(async (session) => {
-    const request = await TheaterRequest.findOneAndUpdate(
-      { _id: id, status: REQUEST_STATUS.PENDING },
-      {
-        status: REQUEST_STATUS.APPROVED,
-        reviewedBy: admin._id,
-        reviewedAt: new Date(),
-        decisionNotes,
-      },
-      { new: true, ...withSession(session) },
-    );
-
-    if (!request) return { conflict: true };
-
-    let theaterId = request.theaterId;
-
-    if (!theaterId) {
-      const proposed = request.proposedTheater;
-      const theater = await createTheater(
-        admin,
+  /**
+   * Approving, creating a proposed theater and assigning it are one
+   * transaction. They used to be three steps, so if the assignment was refused
+   * — the runner suspended a moment earlier, say — the request stayed approved
+   * and a proposed theater was left created with nobody assigned to it. Now a
+   * refusal anywhere leaves the request pending and nothing created.
+   */
+  const outcome = await withTransaction(
+    async (session) => {
+      const request = await TheaterRequest.findOneAndUpdate(
+        { _id: id, status: REQUEST_STATUS.PENDING },
         {
-          name: proposed.name,
-          addressLine1: proposed.addressLine1,
-          city: proposed.city,
-          state: proposed.state,
-          pincode: proposed.pincode,
-          amenities: [],
+          status: REQUEST_STATUS.APPROVED,
+          reviewedBy: admin._id,
+          reviewedAt: new Date(),
+          decisionNotes,
+        },
+        { new: true, ...withSession(session) },
+      );
+
+      if (!request) return { conflict: true };
+
+      let theaterId = request.theaterId;
+
+      if (!theaterId) {
+        const proposed = request.proposedTheater;
+        const theater = await createTheater(
+          admin,
+          {
+            name: proposed.name,
+            addressLine1: proposed.addressLine1,
+            city: proposed.city,
+            state: proposed.state,
+            pincode: proposed.pincode,
+            amenities: [],
+          },
+          req,
+          session,
+        );
+        theaterId = theater._id;
+        request.theaterId = theaterId;
+        await request.save({ ...withSession(session) });
+      }
+
+      // Runs its own checks — active runner, theater exists — and throws if
+      // they fail, which rolls back the approval and any theater created above.
+      const { theater } = await assignManager(
+        admin,
+        theaterId,
+        {
+          userId: request.requesterId,
+          reason: decisionNotes || 'Theater request approved',
         },
         req,
+        session,
       );
-      theaterId = theater._id;
-      request.theaterId = theaterId;
-      await request.save({ ...withSession(session) });
-    }
 
-    await recordAudit(
-      {
-        actor: admin,
-        action: AUDIT_ACTIONS.THEATER_REQUEST_APPROVED,
-        resourceType: 'TheaterRequest',
-        resourceId: request._id,
-        after: { theaterId: String(theaterId) },
-        reason: decisionNotes,
-        req,
-      },
-      session,
-    );
+      await recordAudit(
+        {
+          actor: admin,
+          action: AUDIT_ACTIONS.THEATER_REQUEST_APPROVED,
+          resourceType: 'TheaterRequest',
+          resourceId: request._id,
+          after: { theaterId: String(theaterId) },
+          reason: decisionNotes,
+          req,
+        },
+        session,
+      );
 
-    return { request, theaterId };
-  });
-
-  if (outcome.conflict) throw await explainNotPending(id);
-
-  // Assignment runs its own validation (active runner, not already assigned)
-  // and writes its own audit entry.
-  const { theater } = await assignManager(
-    admin,
-    outcome.theaterId,
-    { userId: outcome.request.requesterId, reason: decisionNotes ?? 'Theater request approved' },
-    req,
+      return { request, theater };
+    },
+    { required: true },
   );
 
-  return { request: outcome.request, theater };
+  if (outcome.conflict) throw await explainNotPending(id);
+  return { request: outcome.request, theater: outcome.theater };
 }
 
 export async function rejectRequest(admin, id, { decisionNotes }, req) {

@@ -32,7 +32,14 @@ uploadsRouter.post(
     const provider = getMediaProvider();
     const folder = FOLDERS[req.body.purpose];
 
-    const publicId = `${folder}/${req.body.resourceId ?? 'new'}-${crypto.randomUUID()}`;
+    /**
+     * The public id is relative to the folder. Cloudinary stores a signed
+     * upload at `folder/public_id`, so putting the folder in both doubled the
+     * path to cinereserve/movies/posters/cinereserve/movies/posters/<id>. The
+     * client reports back the public id the provider returns, which includes
+     * the folder, so nothing downstream changes.
+     */
+    const publicId = `${req.body.resourceId ?? 'new'}-${crypto.randomUUID()}`;
     const signed = provider.signUpload({ folder, publicId });
 
     res.json({

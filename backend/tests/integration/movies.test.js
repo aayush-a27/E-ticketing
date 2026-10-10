@@ -200,6 +200,10 @@ describe('media attachment', () => {
 
     expect(response.status).toBe(200);
     expect(response.body.data.upload.folder).toBe('cinereserve/movies/posters');
+    // Relative to the folder: the provider joins them, so repeating the
+    // folder here would store the file under a doubled path.
+    expect(response.body.data.upload.public_id).not.toContain('cinereserve/');
+    expect(response.body.data.upload.public_id).toMatch(/^new-[0-9a-f-]{36}$/);
     expect(response.body.data.upload.signature).toBeTruthy();
     expect(response.body.data.constraints.allowedFormats).toContain('jpg');
     // The secret is never part of the response.

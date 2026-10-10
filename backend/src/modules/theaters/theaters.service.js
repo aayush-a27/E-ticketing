@@ -42,27 +42,40 @@ async function uniqueSlug(base) {
 
 // --- Theaters ---------------------------------------------------------------
 
-export async function createTheater(actor, payload, req) {
+/**
+ * `session` lets a caller create the theater inside its own transaction, so
+ * that approving a venue proposal and creating the venue succeed or fail
+ * together.
+ */
+export async function createTheater(actor, payload, req, session = undefined) {
   const { coordinates, managerIds, city, ...rest } = payload;
 
-  const theater = await Theater.create({
-    ...rest,
-    city: city.toLowerCase(),
-    cityLabel: city,
-    slug: payload.slug ?? (await uniqueSlug(slugify(`${payload.name}-${city}`))),
-    location: coordinates ? { type: 'Point', coordinates } : undefined,
-    managers: managerIds ?? [],
-    createdBy: actor._id,
-  });
+  const [theater] = await Theater.create(
+    [
+      {
+        ...rest,
+        city: city.toLowerCase(),
+        cityLabel: city,
+        slug: payload.slug ?? (await uniqueSlug(slugify(`${payload.name}-${city}`))),
+        location: coordinates ? { type: 'Point', coordinates } : undefined,
+        managers: managerIds ?? [],
+        createdBy: actor._id,
+      },
+    ],
+    withSession(session),
+  );
 
-  await recordAudit({
-    actor,
-    action: AUDIT_ACTIONS.THEATER_CREATED,
-    resourceType: 'Theater',
-    resourceId: theater._id,
-    after: { name: theater.name, city: theater.cityLabel },
-    req,
-  });
+  await recordAudit(
+    {
+      actor,
+      action: AUDIT_ACTIONS.THEATER_CREATED,
+      resourceType: 'Theater',
+      resourceId: theater._id,
+      after: { name: theater.name, city: theater.cityLabel },
+      req,
+    },
+    session,
+  );
 
   return theater;
 }
@@ -171,11 +184,11 @@ export async function removeTheaterImage(actor, theater, publicId, req) {
  * operating rights are suspended would hand out gate-4 access that gate 3 then
  * silently refuses, which is confusing rather than secure.
  */
-export async function assignManager(actor, theaterId, { userId, reason }, req) {
-  const theater = await Theater.findById(theaterId);
+export async function assignManager(actor, theaterId, { userId, reason }, req, session = undefined) {
+  const theater = await Theater.findById(theaterId).session(session ?? null);
   if (!theater) throw ApiError.notFound('Theater not found');
 
-  const user = await User.findById(userId);
+  const user = await User.findById(userId).session(session ?? null);
   if (!user) throw ApiError.notFound('User not found');
 
   if (user.role !== ROLES.SHOW_RUNNER) {
@@ -185,7 +198,7 @@ export async function assignManager(actor, theaterId, { userId, reason }, req) {
     );
   }
 
-  const profile = await ShowRunnerProfile.findOne({ userId: user._id });
+  const profile = await ShowRunnerProfile.findOne({ userId: user._id }).session(session ?? null);
   if (!profile || profile.status !== SHOW_RUNNER_STATUS.ACTIVE) {
     throw ApiError.badRequest('That show runner is not active', [
       { field: 'userId', message: `Profile is ${profile?.status ?? 'missing'}` },
@@ -197,17 +210,20 @@ export async function assignManager(actor, theaterId, { userId, reason }, req) {
   }
 
   theater.managers.push(user._id);
-  await theater.save();
+  await theater.save(withSession(session));
 
-  await recordAudit({
-    actor,
-    action: AUDIT_ACTIONS.THEATER_MANAGER_ASSIGNED,
-    resourceType: 'Theater',
-    resourceId: theater._id,
-    after: { managerId: String(user._id), email: user.email },
-    reason,
-    req,
-  });
+  await recordAudit(
+    {
+      actor,
+      action: AUDIT_ACTIONS.THEATER_MANAGER_ASSIGNED,
+      resourceType: 'Theater',
+      resourceId: theater._id,
+      after: { managerId: String(user._id), email: user.email },
+      reason,
+      req,
+    },
+    session,
+  );
 
   return { theater, unchanged: false };
 }

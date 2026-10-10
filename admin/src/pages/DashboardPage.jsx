@@ -215,7 +215,10 @@ export default function DashboardPage() {
 function TrendCard({ data, loading }) {
   const series = (data?.trend.series ?? []).map((point) => ({
     ...point,
-    label: shortDay(`${point.date}T00:00:00Z`),
+    // The API's day keys are calendar dates in the platform's timezone. Read
+    // as UTC midnight, they showed as the previous day west of Greenwich, so
+    // the label is built from the date's own parts, at local noon.
+    label: shortDay(new Date(...point.date.split('-').map((part, index) => Number(part) - (index === 1 ? 1 : 0)), 12)),
     bookedValue: point.bookedValuePaise / 100,
   }));
 
