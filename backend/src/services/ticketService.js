@@ -48,3 +48,49 @@ export async function renderTicketQr(token) {
     width: 320,
   });
 }
+
+// --- Entry codes --------------------------------------------------------------
+
+/**
+ * Letters and digits that cannot be mistaken for one another when read off a
+ * phone screen or said aloud at a busy door: no 0/O, no 1/I/L.
+ */
+const ENTRY_CODE_ALPHABET = 'ABCDEFGHJKMNPQRSTUVWXYZ23456789';
+const ENTRY_CODE_LENGTH = 10;
+
+/**
+ * A short code a door attendant can type when there is no camera to read the
+ * QR. Ten characters from a 31-letter alphabet is about 50 bits: with the
+ * gate's per-account rate limit, and only the venue's own staff able to
+ * submit codes for it, guessing a live one is not a practical attack.
+ *
+ * Stored without the hyphen; shown with it.
+ */
+export function createEntryCode() {
+  let code = '';
+  for (let index = 0; index < ENTRY_CODE_LENGTH; index += 1) {
+    code += ENTRY_CODE_ALPHABET[crypto.randomInt(ENTRY_CODE_ALPHABET.length)];
+  }
+  return code;
+}
+
+/**
+ * What staff typed, as it is stored: upper case, spaces and hyphens removed.
+ * Returns null for anything that cannot be an entry code, so a mistyped one
+ * is refused without a database lookup.
+ */
+export function normalizeEntryCode(input) {
+  if (typeof input !== 'string') return null;
+  const code = input.toUpperCase().replace(/[\s-]/g, '');
+  if (code.length !== ENTRY_CODE_LENGTH) return null;
+  for (const char of code) {
+    if (!ENTRY_CODE_ALPHABET.includes(char)) return null;
+  }
+  return code;
+}
+
+/** "7KQ4MXP9TD" -> "7KQ4M-XP9TD", the way it is printed on a ticket. */
+export function formatEntryCode(code) {
+  if (!code) return null;
+  return `${code.slice(0, 5)}-${code.slice(5)}`;
+}

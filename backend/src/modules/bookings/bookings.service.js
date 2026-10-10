@@ -12,6 +12,7 @@ import {
   BOOKING_STATUS,
   BOOKING_TRANSITIONS,
   ERROR_CODES,
+  SHOW_STATUS,
   NOTIFICATION_TYPES,
   PAYMENT_ATTEMPT_STATUS,
   PAYMENT_STATUS,
@@ -21,7 +22,25 @@ import { enqueueNotification } from '../../services/notifications/notificationSe
 import { withTransaction, withSession } from '../../utils/withTransaction.js';
 import { resolvePagination, paginated } from '../../utils/pagination.js';
 import { getLiveHold, convertHold } from '../seat-holds/seatHolds.service.js';
-import { createTicketToken, renderTicketQr } from '../../services/ticketService.js';
+import {
+  createEntryCode,
+  createTicketToken,
+  formatEntryCode,
+  renderTicketQr,
+} from '../../services/ticketService.js';
+
+/**
+ * A fresh entry code no other booking holds. Collisions are around one in a
+ * hundred trillion per code, so this almost never loops; the unique index is
+ * the real guarantee.
+ */
+export async function uniqueEntryCode() {
+  for (let attempt = 0; attempt < 5; attempt += 1) {
+    const code = createEntryCode();
+    if (!(await Booking.exists({ entryCode: code }))) return code;
+  }
+  throw new Error('Could not generate a unique entry code');
+}
 import { logger } from '../../utils/logger.js';
 
 /**
@@ -152,6 +171,19 @@ export async function confirmBooking({ booking, payment, via, actor = null, req 
   const hold = await (await import('../../models/SeatHold.js')).SeatHold.findById(booking.holdId);
   if (!hold) throw ApiError.notFound('The hold for this booking no longer exists');
 
+  /**
+   * A show cancelled while the customer was paying must not take their money
+   * and confirm them into it. Refused with the same code as an unbookable
+   * show, which the payment settlement treats as "seats cannot be given" and
+   * refunds.
+   */
+  const currentShow = await Show.findById(booking.showId).select('status');
+  if (!currentShow || currentShow.status === SHOW_STATUS.CANCELLED) {
+    throw ApiError.conflict('This show has been cancelled', ERROR_CODES.SHOW_NOT_BOOKABLE);
+  }
+
+  const entryCode = await uniqueEntryCode();
+
   const confirmed = await withTransaction(
     async (session) => {
       // Claims the seats permanently. Throws if the hold has lapsed.
@@ -164,6 +196,7 @@ export async function confirmBooking({ booking, payment, via, actor = null, req 
           paymentStatus: PAYMENT_STATUS.PAID,
           confirmedAt: new Date(),
           ticketToken: createTicketToken(String(booking._id)),
+          entryCode,
         },
         { new: true, ...withSession(session) },
       );
@@ -218,6 +251,8 @@ export async function confirmBooking({ booking, payment, via, actor = null, req 
       theaterName: confirmed.snapshot.theaterName,
       startAt: confirmed.snapshot.startAt,
       seats: confirmed.seats.map((seat) => seat.label).join(', '),
+      entryCode: formatEntryCode(confirmed.entryCode),
+      timezone: confirmed.snapshot.timezone,
     },
   });
 
@@ -353,11 +388,27 @@ export async function getTicket(user, bookingId) {
     throw ApiError.conflict('This booking has no ticket token', ERROR_CODES.TICKET_INVALID);
   }
 
+  /**
+   * Bookings confirmed before entry codes existed get one the first time their
+   * ticket is opened. Conditional, so two tabs opening the ticket at once
+   * cannot give it two different codes.
+   */
+  let { entryCode } = booking;
+  if (!entryCode) {
+    const updated = await Booking.findOneAndUpdate(
+      { _id: booking._id, entryCode: { $exists: false }, status: BOOKING_STATUS.CONFIRMED },
+      { entryCode: await uniqueEntryCode() },
+      { new: true },
+    );
+    entryCode = updated?.entryCode ?? (await Booking.findById(booking._id).select('entryCode'))?.entryCode;
+  }
+
   return {
     booking: booking.toPublicJSON(),
     ticket: {
       token: booking.ticketToken,
       qrDataUrl: await renderTicketQr(booking.ticketToken),
+      entryCode: formatEntryCode(entryCode),
       admittedAt: booking.admittedAt ?? null,
     },
   };

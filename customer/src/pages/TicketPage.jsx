@@ -162,18 +162,24 @@ export default function TicketPage() {
               </p>
 
               {/*
-                The same token the QR encodes, for when a camera cannot read
-                a cracked screen. It exposes nothing the QR does not already.
+                For a door with no camera. Staff type this instead of scanning;
+                it is checked exactly like the QR, and works once.
               */}
-              {ticket.token && !ticket.admittedAt && (
-                <details className="mt-3 w-full max-w-xs text-center">
-                  <summary className="cursor-pointer text-xs text-ivory-muted underline-offset-2 hover:underline">
-                    Code will not scan?
-                  </summary>
-                  <p className="mt-2 break-all rounded-lg bg-charcoal-soft px-3 py-2 text-left font-mono text-[10px] leading-relaxed text-ivory-dim select-all">
-                    {ticket.token}
+              {ticket.entryCode && !ticket.admittedAt && (
+                <div className="mt-5 w-full max-w-xs text-center">
+                  <p className="text-[11px] uppercase tracking-[0.18em] text-ivory-muted">
+                    Entry code
                   </p>
-                </details>
+                  <p
+                    className="mt-1.5 select-all font-mono text-2xl font-semibold tracking-[0.12em] text-amber-bright"
+                    aria-label={`Entry code ${ticket.entryCode.split('').join(' ')}`}
+                  >
+                    {ticket.entryCode}
+                  </p>
+                  <p className="mt-1.5 text-xs text-ivory-muted">
+                    If the QR will not scan, read this out at the door.
+                  </p>
+                </div>
               )}
             </div>
           </div>

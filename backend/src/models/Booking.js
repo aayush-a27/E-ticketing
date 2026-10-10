@@ -84,6 +84,13 @@ const bookingSchema = new mongoose.Schema(
 
     /** Opaque, signed, single-purpose. Never contains customer data. */
     ticketToken: { type: String, unique: true, sparse: true },
+    /**
+     * The short code printed under the QR, for a door with no camera. Same
+     * life as the token: issued on confirmation, removed on cancellation, and
+     * never returned by any staff-facing endpoint — a door attendant who could
+     * read it from a list could admit someone without the ticket.
+     */
+    entryCode: { type: String, unique: true, sparse: true },
     admittedAt: { type: Date },
     admittedBy: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
 

@@ -1,6 +1,23 @@
 import { NOTIFICATION_TYPES } from '../../constants/index.js';
 import { env } from '../../config/env.js';
 
+/**
+ * A showtime as the customer reads a clock in the venue's city. UTC would put
+ * an 8 pm show in India at 14:30 GMT in the email.
+ */
+function showtime(value, timeZone = 'Asia/Kolkata') {
+  return new Intl.DateTimeFormat('en-IN', {
+    timeZone,
+    weekday: 'short',
+    day: 'numeric',
+    month: 'short',
+    year: 'numeric',
+    hour: 'numeric',
+    minute: '2-digit',
+    hour12: true,
+  }).format(new Date(value));
+}
+
 const templates = {
   [NOTIFICATION_TYPES.WELCOME]: ({ name }) => ({
     subject: 'Welcome to CineReserve',
@@ -32,9 +49,9 @@ const templates = {
     body: `Hi ${name},\n\nWe are not able to approve your application at this time.\n\nReason: ${reason}\n\nYour CineReserve account is unaffected and you can still book tickets. You are welcome to apply again with updated details.\n\n— CineReserve`,
   }),
 
-  [NOTIFICATION_TYPES.BOOKING_CONFIRMED]: ({ reference, movieTitle, theaterName, startAt, seats }) => ({
+  [NOTIFICATION_TYPES.BOOKING_CONFIRMED]: ({ reference, movieTitle, theaterName, startAt, seats, entryCode, timezone }) => ({
     subject: `Your tickets are confirmed — ${movieTitle}`,
-    body: `Booking ${reference} is confirmed.\n\n${movieTitle}\n${theaterName}\n${new Date(startAt).toUTCString()}\nSeats: ${seats}\n\nShow the QR code in your booking to get in.\n\n— CineReserve`,
+    body: `Booking ${reference} is confirmed.\n\n${movieTitle}\n${theaterName}\n${showtime(startAt, timezone)}\nSeats: ${seats}\n\nShow the QR code in your booking to get in.${entryCode ? ` If it will not scan, give the staff your entry code: ${entryCode}` : ''}\n\n— CineReserve`,
   }),
 
   [NOTIFICATION_TYPES.PAYMENT_FAILED]: ({ reference, reason }) => ({

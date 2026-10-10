@@ -91,9 +91,9 @@ export default function ShowDetailPage() {
     try {
       const result = await cancelShow(namespace, show._id, { reason: cancelReason.trim() });
       toast.success(
-        result.seatsToRefund
-          ? `Show cancelled. ${pluralize(result.seatsToRefund, 'sold seat')} owed a refund.`
-          : 'Show cancelled. No seats had been sold.',
+        result.cancelledBookings
+          ? `Show cancelled. ${pluralize(result.cancelledBookings, 'booking')} cancelled and ${money(result.refundPaise)} refunded in full.`
+          : 'Show cancelled. No tickets had been sold.',
         { duration: 10_000 },
       );
       setPending(null);
@@ -326,8 +326,8 @@ export default function ShowDetailPage() {
               </p>
               {summary?.booked > 0 && (
                 <p className="mt-2 font-medium text-ink-900">
-                  {pluralize(summary.booked, 'seat')} has already been sold. Those customers are
-                  owed a refund, and the server reports the exact count back.
+                  {pluralize(summary.booked, 'seat')} already sold. Every booking is cancelled and
+                  refunded in full — fees included — and their tickets stop working at the gate.
                 </p>
               )}
             </div>

@@ -156,7 +156,7 @@ export async function fetchPublicTheaters(params = {}, { signal } = {}) {
  * Submits a scanned token. Decoding a QR code proves nothing — only this call
  * decides, and it is what marks the ticket used.
  */
-export async function validateTicket(token) {
-  const response = await api.post('/tickets/validate', { token });
+export async function validateTicket({ token, code }) {
+  const response = await api.post('/tickets/validate', token ? { token } : { code });
   return unwrap(response);
 }

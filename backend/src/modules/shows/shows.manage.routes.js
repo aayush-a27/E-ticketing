@@ -71,13 +71,15 @@ export function createShowsManagementRouter({ scopeToUser }) {
     '/:id/cancel',
     validate({ params: showIdSchema, body: cancelShowSchema }),
     asyncHandler(async (req, res) => {
-      const { show, seatsToRefund } = await service.cancelShow(
+      const { show, unchanged, ...customers } = await service.cancelShow(
         req.user,
         req.params.id,
         req.body,
         req,
       );
-      res.json({ data: { show, seatsToRefund } });
+      // seatsToRefund, cancelledBookings, refundsCreated, refundPaise and
+      // expiredUnpaidBookings: what happened to the show's customers.
+      res.json({ data: { show, ...customers } });
     }),
   );
 

@@ -9,9 +9,16 @@ import {
   BOOKING_STATUS,
   CANCELLATION_STATUS,
   ERROR_CODES,
+  HOLD_STATUS,
+  NOTIFICATION_TYPES,
   PAYMENT_STATUS,
+  REFUND_STATUS,
   SEAT_STATE,
 } from '../../constants/index.js';
+import { Refund } from '../../models/Refund.js';
+import { SeatHold } from '../../models/SeatHold.js';
+import { User } from '../../models/User.js';
+import { enqueueNotification } from '../../services/notifications/notificationService.js';
 import { recordAudit } from '../../services/auditService.js';
 import { withTransaction, withSession } from '../../utils/withTransaction.js';
 import { evaluateCancellation } from '../../services/cancellationPolicy.js';
@@ -117,13 +124,16 @@ export async function cancelBooking(user, bookingId, { seatIds = null, reason },
         update.status = BOOKING_STATUS.CANCELLED;
         update.cancelledAt = now;
         update.cancellationReason = reason;
-        // A cancelled booking must not pass at the gate.
+        // A cancelled booking must not pass at the gate, by QR or by code.
         update.ticketToken = undefined;
+        update.entryCode = undefined;
       }
 
       const updatedBooking = await Booking.findOneAndUpdate(
         { _id: booking._id, status: BOOKING_STATUS.CONFIRMED },
-        decision.isWholeBooking ? { ...update, $unset: { ticketToken: '' } } : update,
+        decision.isWholeBooking
+          ? { ...update, $unset: { ticketToken: '', entryCode: '' } }
+          : update,
         { new: true, ...withSession(session) },
       );
 
@@ -211,4 +221,117 @@ export async function listCancellations(user, bookingId) {
   const booking = await Booking.findOne({ _id: bookingId, userId: user._id }).select('_id');
   if (!booking) throw ApiError.notFound('Booking not found', ERROR_CODES.BOOKING_NOT_FOUND);
   return Cancellation.find({ bookingId: booking._id }).sort({ createdAt: -1 });
+}
+
+/**
+ * Everything that has to happen to a show's customers when the venue cancels
+ * the show. Runs inside the caller's transaction, so the show is never marked
+ * cancelled while its customers are left holding confirmed bookings.
+ *
+ *   - Every confirmed booking is cancelled and refunded in full — whatever is
+ *     left after any earlier partial cancellation, fees included, because the
+ *     customer did nothing wrong. Its QR token and entry code are removed, so
+ *     neither passes at the gate.
+ *   - Unpaid bookings can never be completed now, so they expire. A payment
+ *     that lands for one of them afterwards is refunded by the payment
+ *     settlement rather than confirmed.
+ *   - Active seat holds are released.
+ *
+ * The refunds are created pending; the reconciliation job sends them to the
+ * gateway, exactly as for any other refund.
+ */
+export async function cancelBookingsForShow(actor, show, reason, req, session = undefined) {
+  const now = new Date();
+  const confirmed = await Booking.find({
+    showId: show._id,
+    status: BOOKING_STATUS.CONFIRMED,
+  }).session(session ?? null);
+
+  let cancelledBookings = 0;
+  let refundsCreated = 0;
+  let refundPaise = 0;
+
+  for (const booking of confirmed) {
+    // What has already gone back through earlier partial cancellations.
+    const [already] = await Refund.aggregate([
+      { $match: { bookingId: booking._id, status: { $ne: REFUND_STATUS.FAILED } } },
+      { $group: { _id: null, total: { $sum: '$amountPaise' } } },
+    ]).session(session ?? null);
+    const owed = Math.max(0, booking.amountPaise - (already?.total ?? 0));
+
+    const updated = await Booking.findOneAndUpdate(
+      { _id: booking._id, status: BOOKING_STATUS.CONFIRMED },
+      {
+        status: BOOKING_STATUS.CANCELLED,
+        cancelledAt: now,
+        cancellationReason: `Show cancelled by the venue: ${reason}`,
+        ...(owed > 0 ? { paymentStatus: PAYMENT_STATUS.REFUND_PENDING } : {}),
+        $unset: { ticketToken: '', entryCode: '' },
+      },
+      { new: true, ...withSession(session) },
+    );
+    if (!updated) continue;
+    cancelledBookings += 1;
+
+    const refund = await createRefundForBooking(
+      {
+        booking: updated,
+        amountPaise: owed,
+        reason: 'show_cancelled',
+        notes: `Show cancelled: ${reason}`,
+      },
+      session,
+    );
+    if (refund) {
+      refundsCreated += 1;
+      refundPaise += owed;
+    }
+
+    await recordAudit(
+      {
+        actor,
+        action: AUDIT_ACTIONS.CANCELLATION_COMPLETED,
+        resourceType: 'Booking',
+        resourceId: updated._id,
+        before: { status: BOOKING_STATUS.CONFIRMED },
+        after: { status: BOOKING_STATUS.CANCELLED, refundPaise: owed, cause: 'show_cancelled' },
+        reason,
+        req,
+      },
+      session,
+    );
+
+    const customer = await User.findById(updated.userId).select('email').session(session ?? null);
+    await enqueueNotification(
+      {
+        userId: updated.userId,
+        type: NOTIFICATION_TYPES.BOOKING_CANCELLED,
+        to: customer?.email,
+        data: { reference: updated.reference, refundPaise: owed },
+      },
+      session,
+    );
+  }
+
+  const unpaid = await Booking.updateMany(
+    {
+      showId: show._id,
+      status: { $in: [BOOKING_STATUS.PENDING_PAYMENT, BOOKING_STATUS.PAYMENT_FAILED] },
+    },
+    { status: BOOKING_STATUS.EXPIRED, expiredAt: now },
+    withSession(session),
+  );
+
+  await SeatHold.updateMany(
+    { showId: show._id, status: HOLD_STATUS.ACTIVE },
+    { status: HOLD_STATUS.RELEASED, releasedAt: now },
+    withSession(session),
+  );
+
+  return {
+    cancelledBookings,
+    refundsCreated,
+    refundPaise,
+    expiredUnpaidBookings: unpaid.modifiedCount ?? 0,
+  };
 }

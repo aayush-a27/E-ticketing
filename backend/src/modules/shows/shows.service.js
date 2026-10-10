@@ -346,27 +346,64 @@ export async function publishShow(actor, id, req) {
 export async function cancelShow(actor, id, { reason }, req) {
   const { show } = await loadShowForWrite(actor, id);
 
-  if (show.status === SHOW_STATUS.CANCELLED) return { show, unchanged: true };
+  if (show.status === SHOW_STATUS.CANCELLED) return { show, unchanged: true, seatsToRefund: 0 };
 
-  show.status = SHOW_STATUS.CANCELLED;
-  show.cancelledAt = new Date();
-  show.cancellationReason = reason;
-  show.updatedBy = actor._id;
-  await show.save();
+  const seatsSold = show.bookedSeatCount;
+  const { cancelBookingsForShow } = await import('../cancellations/cancellations.service.js');
 
-  await recordAudit({
-    actor,
-    action: AUDIT_ACTIONS.SHOW_CANCELLED,
-    resourceType: 'Show',
-    resourceId: show._id,
-    after: { status: show.status, bookedSeatCount: show.bookedSeatCount },
-    reason,
-    req,
-  });
+  /**
+   * The show and every booking for it change together. This used to mark the
+   * show cancelled and stop there — customers kept confirmed bookings, valid
+   * tickets and no refund, while the console reported seats "owed a refund"
+   * that nothing ever paid.
+   */
+  const customers = await withTransaction(
+    async (session) => {
+      const updated = await Show.findOneAndUpdate(
+        { _id: show._id, status: { $ne: SHOW_STATUS.CANCELLED } },
+        {
+          status: SHOW_STATUS.CANCELLED,
+          cancelledAt: new Date(),
+          cancellationReason: reason,
+          updatedBy: actor._id,
+        },
+        { new: true, ...withSession(session) },
+      );
+      if (!updated) return null;
 
-  // Refunding anyone already holding a ticket is Phase 5's job; the audit entry
-  // records how many seats are affected.
-  return { show, unchanged: false, seatsToRefund: show.bookedSeatCount };
+      const result = await cancelBookingsForShow(actor, updated, reason, req, session);
+
+      await recordAudit(
+        {
+          actor,
+          action: AUDIT_ACTIONS.SHOW_CANCELLED,
+          resourceType: 'Show',
+          resourceId: show._id,
+          after: { status: SHOW_STATUS.CANCELLED, bookedSeatCount: seatsSold, ...result },
+          reason,
+          req,
+        },
+        session,
+      );
+
+      return { show: updated, ...result };
+    },
+    { required: true },
+  );
+
+  if (!customers) {
+    return { show: await Show.findById(show._id), unchanged: true, seatsToRefund: 0 };
+  }
+
+  return {
+    show: customers.show,
+    unchanged: false,
+    seatsToRefund: seatsSold,
+    cancelledBookings: customers.cancelledBookings,
+    refundsCreated: customers.refundsCreated,
+    refundPaise: customers.refundPaise,
+    expiredUnpaidBookings: customers.expiredUnpaidBookings,
+  };
 }
 
 // --- Reading ----------------------------------------------------------------

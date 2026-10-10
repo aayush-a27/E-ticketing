@@ -16,18 +16,41 @@ import {
 import { Booking } from '../../models/Booking.js';
 import { Theater } from '../../models/Theater.js';
 import { Show } from '../../models/Show.js';
-import { verifyTicketToken } from '../../services/ticketService.js';
+import { normalizeEntryCode, verifyTicketToken } from '../../services/ticketService.js';
 import { recordAudit } from '../../services/auditService.js';
 
-const validateSchema = z.object({
-  token: z.string().trim().min(32).max(200),
-});
+/**
+ * Either the QR's signed token or the short entry code printed under it —
+ * one, never both. The code exists for a door with no camera.
+ */
+const validateSchema = z
+  .object({
+    token: z.string().trim().min(32).max(200).optional(),
+    code: z.string().trim().min(10).max(16).optional(),
+  })
+  .refine((value) => Boolean(value.token) !== Boolean(value.code), {
+    message: 'Send the ticket token or the entry code',
+  });
+
+async function bookingForToken(token) {
+  const decoded = verifyTicketToken(token);
+  if (!decoded) return null;
+  const booking = await Booking.findById(decoded.bookingId);
+  return booking?.ticketToken === token ? booking : null;
+}
+
+async function bookingForCode(input) {
+  const code = normalizeEntryCode(input);
+  if (!code) return null;
+  return Booking.findOne({ entryCode: code });
+}
 
 /** When a show's end time was never recorded, assume a long film. */
 const FALLBACK_RUN_MINUTES = 240;
 
 /**
- * Gate validation, for venue staff.
+ * Gate validation, for venue staff. A ticket arrives as the QR's signed token
+ * or as the short entry code, and both go through the same checks below.
  *
  * The checks run in an order that leaks nothing:
  *
@@ -49,15 +72,13 @@ ticketsRouter.post(
   gateLimiter,
   validate({ body: validateSchema }),
   asyncHandler(async (req, res) => {
-    const decoded = verifyTicketToken(req.body.token);
-    if (!decoded) {
-      throw new ApiError(400, ERROR_CODES.TICKET_INVALID, 'This ticket is not valid');
-    }
+    const booking = req.body.token
+      ? await bookingForToken(req.body.token)
+      : await bookingForCode(req.body.code);
 
-    const booking = await Booking.findById(decoded.bookingId);
-    if (!booking || booking.ticketToken !== req.body.token) {
-      // A cancelled booking has its token cleared, so it lands here too: a
-      // cancelled ticket reads the same as a forged one, which is right.
+    if (!booking) {
+      // A cancelled booking has its token and code cleared, so it lands here
+      // too: a cancelled ticket reads the same as a forged one, which is right.
       throw new ApiError(400, ERROR_CODES.TICKET_INVALID, 'This ticket is not valid');
     }
 

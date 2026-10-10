@@ -1,6 +1,7 @@
 import crypto from 'node:crypto';
 import { Booking } from '../../models/Booking.js';
 import { Payment } from '../../models/Payment.js';
+import { Show } from '../../models/Show.js';
 import { WebhookEvent } from '../../models/WebhookEvent.js';
 import { ApiError } from '../../utils/ApiError.js';
 import {
@@ -8,6 +9,7 @@ import {
   BOOKING_STATUS,
   ERROR_CODES,
   PAYMENT_ATTEMPT_STATUS,
+  SHOW_STATUS,
 } from '../../constants/index.js';
 import { recordAudit } from '../../services/auditService.js';
 import { getPaymentProvider } from '../../services/payments/providers.js';
@@ -38,6 +40,12 @@ export async function initiatePayment(user, bookingId, req) {
       `This booking is ${booking.status} and cannot be paid for`,
       ERROR_CODES.BOOKING_NOT_PAYABLE,
     );
+  }
+
+  // No new money is taken for a show that will not run.
+  const show = await Show.findById(booking.showId).select('status');
+  if (!show || show.status === SHOW_STATUS.CANCELLED) {
+    throw ApiError.conflict('This show has been cancelled', ERROR_CODES.SHOW_NOT_BOOKABLE);
   }
 
   // The seats must still be ours to sell.
@@ -168,6 +176,14 @@ export async function verifyPayment(user, bookingId, { orderId, paymentId, signa
  * money is queued for return.
  */
 export async function settleVerifiedPayment({ booking, payment, via, actor = null, req = null }) {
+  // The browser callback and the webhook both land here. If the first already
+  // found the seats gone and queued the refund, the second must not queue
+  // another.
+  const current = await Booking.findById(booking._id);
+  if (current?.status === BOOKING_STATUS.UNFULFILLABLE) {
+    return { booking: current, outcome: 'unfulfillable' };
+  }
+
   try {
     const { booking: confirmed, alreadyConfirmed } = await confirmBooking({
       booking,
@@ -178,27 +194,49 @@ export async function settleVerifiedPayment({ booking, payment, via, actor = nul
     });
     return { booking: confirmed, outcome: alreadyConfirmed ? 'already_confirmed' : 'confirmed' };
   } catch (error) {
+    /**
+     * Money arrived but the seats cannot be given. Three ways that happens:
+     * the hold lapsed, someone else now has the seats, or the show was
+     * cancelled. A fourth used to slip through: the clean-up job had already
+     * marked the abandoned booking expired, so confirming it was refused as an
+     * invalid transition and rethrown — the customer was charged and given
+     * neither seats nor a refund.
+     */
+    const showCancelled = error?.code === ERROR_CODES.SHOW_NOT_BOOKABLE;
+    const alreadyExpired =
+      error?.code === ERROR_CODES.INVALID_TRANSITION && current?.status === BOOKING_STATUS.EXPIRED;
     const lostSeats =
-      error?.code === ERROR_CODES.HOLD_EXPIRED || error?.code === ERROR_CODES.SEATS_UNAVAILABLE;
+      error?.code === ERROR_CODES.HOLD_EXPIRED ||
+      error?.code === ERROR_CODES.SEATS_UNAVAILABLE ||
+      showCancelled ||
+      alreadyExpired;
 
     if (!lostSeats) throw error;
 
     const updated = await markUnfulfillable({
       booking,
       payment,
-      reason: 'Payment completed after the seat hold expired',
+      reason: showCancelled
+        ? 'Payment completed after the show was cancelled'
+        : 'Payment completed after the seat hold expired',
       req,
     });
 
-    // Queue the money back. The refund job picks this up.
+    // Queue the money back, once per payment. The refund job picks this up.
     const { createRefundForBooking } = await import('../refunds/refunds.service.js');
-    await createRefundForBooking({
-      booking: updated,
-      payment,
-      amountPaise: payment.amountPaise,
-      reason: 'unfulfillable',
-      notes: 'Seats were released before payment completed',
-    });
+    const { Refund } = await import('../../models/Refund.js');
+    const alreadyQueued = await Refund.exists({ paymentId: payment._id, reason: 'unfulfillable' });
+    if (!alreadyQueued) {
+      await createRefundForBooking({
+        booking: updated,
+        payment,
+        amountPaise: payment.amountPaise,
+        reason: 'unfulfillable',
+        notes: showCancelled
+          ? 'The show was cancelled before payment completed'
+          : 'Seats were released before payment completed',
+      });
+    }
 
     return { booking: updated, outcome: 'unfulfillable' };
   }

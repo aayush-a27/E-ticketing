@@ -14,11 +14,31 @@ import { validateTicket } from '../../services/platformService.js';
 import { ERROR_CODES } from '../../services/api.js';
 import { Button } from '../../components/ui/Button.jsx';
 import { Card, CardHeader, PageHeader } from '../../components/ui/Layout.jsx';
-import { TextArea } from '../../components/ui/Field.jsx';
 import { dateTime, timeOnly } from '../../utils/format.js';
 
 /** Ignore the same code for this long after it was read, so one QR is one scan. */
 const REPEAT_GUARD_MS = 4000;
+
+/**
+ * What the door attendant typed or pasted. Ten letters and digits, with or
+ * without the hyphen, is the entry code printed under the QR; anything long
+ * is the QR's own signed token, pasted. The server re-checks either way.
+ */
+function readInput(raw) {
+  const trimmed = raw.trim();
+  const compact = trimmed.toUpperCase().replace(/[\s-]/g, '');
+  if (/^[A-Z0-9]{10}$/.test(compact)) return { code: compact };
+  if (trimmed.length >= 32) return { token: trimmed };
+  return null;
+}
+
+/** Shows a code as it is printed on the ticket while it is being typed. */
+function formatAsTyped(value) {
+  const compact = value.toUpperCase().replace(/[^A-Z0-9]/g, '');
+  // Long input is a pasted token; leave it exactly as it was.
+  if (value.length > 12) return value;
+  return compact.length > 5 ? `${compact.slice(0, 5)}-${compact.slice(5, 10)}` : compact;
+}
 
 /**
  * Turns the API's answer into what the person at the door needs: admit or
@@ -119,25 +139,27 @@ export default function GatePage() {
   const [manual, setManual] = useState('');
   const [history, setHistory] = useState([]);
 
-  const submit = useCallback(async (raw) => {
-    const token = raw.trim();
-    if (!token || busyRef.current) return;
+  const submit = useCallback(async (ticket) => {
+    if (!ticket || busyRef.current) return;
+    const key = ticket.token ?? ticket.code;
 
     const now = Date.now();
-    if (lastRef.current.token === token && now - lastRef.current.at < REPEAT_GUARD_MS) return;
-    lastRef.current = { token, at: now };
+    if (lastRef.current.token === key && now - lastRef.current.at < REPEAT_GUARD_MS) return;
+    lastRef.current = { token: key, at: now };
 
     busyRef.current = true;
     setChecking(true);
     try {
-      const result = await validateTicket(token);
+      const result = await validateTicket(ticket);
       const next = outcomeFrom(result, null);
       setOutcome(next);
       setHistory((current) => [{ ...next, at: new Date() }, ...current].slice(0, 12));
+      return next;
     } catch (error) {
       const next = outcomeFrom(null, error);
       setOutcome(next);
       setHistory((current) => [{ ...next, at: new Date() }, ...current].slice(0, 12));
+      return next;
     } finally {
       busyRef.current = false;
       setChecking(false);
@@ -166,7 +188,7 @@ export default function GatePage() {
       context.drawImage(video, 0, 0, width, height);
       const image = context.getImageData(0, 0, width, height);
       const code = jsQR(image.data, width, height, { inversionAttempts: 'dontInvert' });
-      if (code?.data) submit(code.data);
+      if (code?.data) submit({ token: code.data });
     }
 
     frameRef.current = requestAnimationFrame(scanFrame);
@@ -212,7 +234,7 @@ export default function GatePage() {
     <>
       <PageHeader
         title="Gate"
-        description="Scan a ticket's QR code. The server decides; a ticket is marked used only when it admits someone."
+        description="Scan the ticket's QR code, or type its entry code. The server decides; a ticket is marked used only when it admits someone."
       />
 
       <div className="grid gap-5 lg:grid-cols-[1.618fr_1fr]">
@@ -265,29 +287,58 @@ export default function GatePage() {
 
           <Card>
             <CardHeader
-              title="Enter a code by hand"
-              description="For a cracked phone screen or a printed ticket the camera will not read."
+              title="Enter the code"
+              description="No camera, or a screen that will not scan? Type the entry code printed under the customer's QR."
             />
             <form
               className="space-y-3 p-5"
               onSubmit={(event) => {
                 event.preventDefault();
+                const ticket = readInput(manual);
+                if (!ticket) {
+                  setOutcome({
+                    tone: 'warn',
+                    Icon: TriangleAlert,
+                    title: 'Check the code',
+                    message: 'An entry code is 10 letters and digits, like 7KQ4M-XP9TD.',
+                  });
+                  return;
+                }
                 lastRef.current = { token: null, at: 0 };
-                submit(manual);
+                // Cleared only when someone is let in, so a typo can be fixed
+                // rather than retyped from the start.
+                submit(ticket).then((next) => {
+                  if (next?.tone === 'good') setManual('');
+                });
               }}
             >
-              <TextArea
-                label="Ticket code"
-                rows={3}
-                value={manual}
-                onChange={(event) => setManual(event.target.value)}
-                placeholder="The long code under the QR on the customer's ticket"
-                style={{ fontFamily: 'var(--font-mono)' }}
-              />
-              <Button type="submit" loading={checking} disabled={!manual.trim()}>
-                <Keyboard className="size-4" aria-hidden="true" />
-                Check ticket
-              </Button>
+              <label htmlFor="entry-code" className="block text-sm font-medium text-ink-700">
+                Entry code
+              </label>
+              <div className="flex flex-col gap-2.5 sm:flex-row">
+                <input
+                  id="entry-code"
+                  type="text"
+                  inputMode="text"
+                  autoComplete="off"
+                  autoCapitalize="characters"
+                  spellCheck={false}
+                  value={manual}
+                  onChange={(event) => setManual(formatAsTyped(event.target.value))}
+                  placeholder="XXXXX-XXXXX"
+                  aria-describedby="entry-code-hint"
+                  className="h-12 min-w-0 flex-1 rounded-lg border border-ink-200 bg-white px-4 text-center text-xl font-semibold uppercase tracking-[0.2em] text-ink-900 transition-colors placeholder:font-normal placeholder:tracking-[0.2em] placeholder:text-ink-300 hover:border-ink-300 focus:border-brand"
+                  style={{ fontFamily: 'var(--font-mono)' }}
+                />
+                <Button type="submit" size="lg" loading={checking} disabled={!manual.trim()} className="h-12">
+                  <Keyboard className="size-4" aria-hidden="true" />
+                  Check
+                </Button>
+              </div>
+              <p id="entry-code-hint" className="text-xs text-ink-500">
+                Upper or lower case, with or without the dash. Each code works once, and only at
+                the right venue and time — exactly like the QR.
+              </p>
             </form>
           </Card>
         </div>
