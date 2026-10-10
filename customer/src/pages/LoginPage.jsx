@@ -83,14 +83,21 @@ export default function LoginPage() {
             })}
           />
 
-          <TextField
-            label="Password"
-            type="password"
-            autoComplete="current-password"
-            placeholder="Your password"
-            error={errors.password?.message}
-            {...register('password', { required: 'Enter your password' })}
-          />
+          <div>
+            <TextField
+              label="Password"
+              type="password"
+              autoComplete="current-password"
+              placeholder="Your password"
+              error={errors.password?.message}
+              {...register('password', { required: 'Enter your password' })}
+            />
+            <p className="mt-2 text-right text-sm">
+              <Link to="/forgot-password" className="text-ivory-muted hover:text-amber-bright hover:underline">
+                Forgot password?
+              </Link>
+            </p>
+          </div>
 
           <Button type="submit" loading={isSubmitting} className="w-full" size="lg">
             Sign in

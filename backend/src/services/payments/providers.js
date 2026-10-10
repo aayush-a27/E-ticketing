@@ -2,6 +2,7 @@ import crypto from 'node:crypto';
 import { env } from '../../config/env.js';
 import { ApiError } from '../../utils/ApiError.js';
 import { ERROR_CODES } from '../../constants/index.js';
+import { logger } from '../../utils/logger.js';
 
 /**
  * A payment provider creates orders, proves that a payment really happened,
@@ -12,6 +13,7 @@ import { ERROR_CODES } from '../../constants/index.js';
  *   verifyPaymentSignature({ orderId, paymentId, signature }) -> boolean
  *   verifyWebhookSignature({ rawBody, signature }) -> boolean
  *   fetchPayment(paymentId) -> { id, status, amountPaise, method } | null
+ *   capture({ paymentId, amountPaise, currency }) -> { status }
  *   refund({ paymentId, amountPaise, notes }) -> { refundId, status }
  *
  * Signature checks are the only thing that proves a payment. A browser
@@ -56,10 +58,11 @@ export const razorpayProvider = {
         status: order.status,
       };
     } catch (error) {
+      logger.error({ err: describeRazorpayError(error) }, 'Razorpay order creation failed');
       throw new ApiError(
         502,
-        ERROR_CODES.MEDIA_UPLOAD_FAILED,
-        `Could not create a payment order: ${error?.error?.description ?? error.message}`,
+        ERROR_CODES.PAYMENT_PROVIDER_ERROR,
+        'The payment service could not start this payment. Please try again.',
       );
     }
   },
@@ -92,8 +95,39 @@ export const razorpayProvider = {
         amountPaise: payment.amount,
         method: payment.method,
       };
-    } catch {
+    } catch (error) {
+      // The signature already binds this payment to our order, whose amount
+      // Razorpay enforces, so a failed lookup does not block confirmation —
+      // but it is logged rather than swallowed.
+      logger.warn({ err: describeRazorpayError(error), paymentId }, 'Razorpay payment lookup failed');
       return null;
+    }
+  },
+
+  /**
+   * Razorpay keeps money only once a payment is captured. An authorized
+   * payment that is never captured is returned to the customer after a few
+   * days — so a booking confirmed on authorization alone would be a ticket
+   * the venue was never paid for. Whether `payment_capture` on the order is
+   * honoured depends on the account's capture settings, so capture is also
+   * done explicitly.
+   */
+  async capture({ paymentId, amountPaise, currency = 'INR' }) {
+    const client = await this.client();
+    try {
+      const payment = await client.payments.capture(paymentId, amountPaise, currency);
+      return { status: payment.status };
+    } catch (error) {
+      // Captured in between — by the order setting or another request — is
+      // the outcome we wanted.
+      const current = await this.fetchPayment(paymentId);
+      if (current?.status === 'captured') return { status: 'captured' };
+      logger.error({ err: describeRazorpayError(error), paymentId }, 'Razorpay capture failed');
+      throw new ApiError(
+        502,
+        ERROR_CODES.PAYMENT_PROVIDER_ERROR,
+        'The payment was authorised but could not be completed. You have not been charged; please try again.',
+      );
     }
   },
 
@@ -122,6 +156,8 @@ export const memoryPaymentProvider = {
   orders: new Map(),
   payments: new Map(),
   refunds: new Map(),
+  // Payment ids captured explicitly, so tests can assert it happened.
+  captures: [],
 
   isConfigured() {
     return true;
@@ -153,6 +189,13 @@ export const memoryPaymentProvider = {
 
   async fetchPayment(paymentId) {
     return this.payments.get(paymentId) ?? null;
+  },
+
+  async capture({ paymentId }) {
+    const payment = this.payments.get(paymentId);
+    if (payment) payment.status = 'captured';
+    this.captures.push(paymentId);
+    return { status: 'captured' };
   },
 
   async refund({ paymentId, amountPaise }) {
@@ -190,8 +233,22 @@ export const memoryPaymentProvider = {
     this.orders.clear();
     this.payments.clear();
     this.refunds.clear();
+    this.captures = [];
   },
 };
+
+/**
+ * The useful part of a Razorpay SDK error, for the log. The SDK rejects with
+ * { statusCode, error: { code, description, ... } }; the key secret is never
+ * part of it.
+ */
+function describeRazorpayError(error) {
+  return {
+    statusCode: error?.statusCode,
+    code: error?.error?.code,
+    description: error?.error?.description ?? error?.message,
+  };
+}
 
 /** Constant-time compare that tolerates length differences. */
 function timingSafeEqual(expected, received) {

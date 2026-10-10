@@ -52,7 +52,22 @@ const schema = z.object({
   // another day cannot be burned by scanning it today.
   GATE_OPENS_MINUTES_BEFORE: z.coerce.number().int().min(0).max(1440).default(90),
 
-  NOTIFICATION_TRANSPORT: z.enum(['console', 'noop']).default('console'),
+  // `console` prints emails to the server log, which is enough for local
+  // development. `smtp` sends them for real through any SMTP account — Gmail
+  // with an app password and Brevo's free tier both work, at no cost.
+  NOTIFICATION_TRANSPORT: z.enum(['console', 'noop', 'smtp']).default('console'),
+  SMTP_HOST: z.string().optional(),
+  SMTP_PORT: z.coerce.number().int().positive().default(587),
+  // true for port 465 (TLS from the start); false for 587 (STARTTLS).
+  SMTP_SECURE: booleanish.default('false'),
+  SMTP_USER: z.string().optional(),
+  SMTP_PASS: z.string().optional(),
+  // The From address, e.g. "CineReserve <you@gmail.com>". Most providers
+  // require it to be an address the account is allowed to send as.
+  SMTP_FROM: z.string().optional(),
+  // Send each email the moment it is queued, rather than waiting for the next
+  // outbox sweep. The sweep still retries anything that fails.
+  NOTIFICATION_DELIVER_IMMEDIATELY: booleanish.default('true'),
   APP_PUBLIC_URL: z.string().default('http://localhost:5173'),
 
   // Image storage. `memory` keeps the project runnable with no account and no
@@ -88,7 +103,36 @@ const schema = z.object({
   LOG_LEVEL: z.enum(['fatal', 'error', 'warn', 'info', 'debug', 'trace', 'silent']).default('info'),
 });
 
-const parsed = schema.safeParse(process.env);
+/**
+ * A provider switched on without its credentials fails at start-up with a
+ * message naming what is missing, rather than at the first payment or upload.
+ */
+const configured = schema.superRefine((value, ctx) => {
+  const need = (condition, keys) => {
+    if (!condition) return;
+    for (const key of keys) {
+      if (!value[key]) {
+        ctx.addIssue({ code: z.ZodIssueCode.custom, path: [key], message: `${key} is required` });
+      }
+    }
+  };
+  need(value.PAYMENT_PROVIDER === 'razorpay', ['RAZORPAY_KEY_ID', 'RAZORPAY_KEY_SECRET']);
+  need(value.MEDIA_PROVIDER === 'cloudinary', [
+    'CLOUDINARY_CLOUD_NAME',
+    'CLOUDINARY_API_KEY',
+    'CLOUDINARY_API_SECRET',
+  ]);
+  need(value.NOTIFICATION_TRANSPORT === 'smtp', ['SMTP_HOST', 'SMTP_USER', 'SMTP_PASS', 'SMTP_FROM']);
+  if (value.RAZORPAY_KEY_ID && !/^rzp_(test|live)_/.test(value.RAZORPAY_KEY_ID)) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      path: ['RAZORPAY_KEY_ID'],
+      message: 'A Razorpay key id starts with rzp_test_ or rzp_live_',
+    });
+  }
+});
+
+const parsed = configured.safeParse(process.env);
 
 if (!parsed.success) {
   const details = parsed.error.issues

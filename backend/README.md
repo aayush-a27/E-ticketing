@@ -92,6 +92,83 @@ API, set `COOKIE_SECURE=true` and `COOKIE_SAME_SITE=none`, and list both
 frontend origins in `CORS_ORIGINS`. A browser silently drops a `SameSite=none`
 cookie that is not `Secure`.
 
+## Connecting the real services
+
+Out of the box the API runs on local stand-ins, so it works with no
+accounts: a simulated payment gateway, an in-memory image store and emails
+printed to the console. Each can be switched to the real service with a free
+account. Fill the keys into `backend/.env`, flip the switch, restart the API.
+If a switch is on and a key is missing, the server refuses to start and names
+what is missing.
+
+### Payments — Razorpay test mode
+
+1. Sign up at [dashboard.razorpay.com](https://dashboard.razorpay.com) and turn
+   on **Test Mode** (top of the dashboard). No KYC is needed for test mode.
+2. **Account & Settings → API Keys → Generate Test Key.** Copy both values.
+3. In `.env`:
+
+   ```
+   PAYMENT_PROVIDER=razorpay
+   RAZORPAY_KEY_ID=rzp_test_...
+   RAZORPAY_KEY_SECRET=...
+   ```
+
+4. Book a seat on the customer site. In the Razorpay window, pay with a
+   [test card](https://razorpay.com/docs/payments/payments/test-card-details/)
+   or test UPI ID `success@razorpay`. No real money moves.
+
+**Webhooks (optional locally).** The booking is confirmed by the browser's
+verified callback alone; the webhook is the safety net for a customer who
+closes the tab mid-payment. Razorpay cannot reach `localhost`, so locally you
+would need a tunnel (`ngrok http 4000`). Then **Webhooks → Add New Webhook**,
+URL `https://<tunnel>/api/v1/webhooks/razorpay`, a secret of your choosing,
+and the events `payment.authorized`, `payment.captured` and `payment.failed`.
+Put the same secret in `RAZORPAY_WEBHOOK_SECRET`.
+
+**Capture.** Razorpay keeps money only once a payment is *captured*. The API
+captures any payment that comes back merely *authorized* before it issues a
+ticket, so it works whatever your account's capture setting is.
+
+### Images — Cloudinary
+
+1. Sign up at [cloudinary.com](https://cloudinary.com) (free plan).
+2. The **Dashboard** shows *Cloud name*, *API Key* and *API Secret*.
+3. In `.env`:
+
+   ```
+   MEDIA_PROVIDER=cloudinary
+   CLOUDINARY_CLOUD_NAME=...
+   CLOUDINARY_API_KEY=...
+   CLOUDINARY_API_SECRET=...
+   ```
+
+4. In the console, open a film and upload a poster. The file goes straight
+   from the browser to Cloudinary with a one-time signature from this server;
+   the API secret never reaches the browser.
+
+### Email — any SMTP account
+
+**Gmail** (simplest): turn on 2-Step Verification, then **Google Account →
+Security → App passwords** and create one. **Brevo** (300 emails a day free):
+**SMTP & API → SMTP** shows the login and lets you create a key.
+
+```
+NOTIFICATION_TRANSPORT=smtp
+SMTP_HOST=smtp.gmail.com           # or smtp-relay.brevo.com
+SMTP_PORT=587
+SMTP_SECURE=false
+SMTP_USER=you@gmail.com            # Brevo: the SMTP login
+SMTP_PASS=the-16-character-app-password
+SMTP_FROM=CineReserve <you@gmail.com>
+APP_PUBLIC_URL=http://localhost:5173
+```
+
+Then use **Forgot password?** on the customer site's sign-in page. Emails are
+sent the moment they are queued; one that fails is retried after 1, 2, 4 and
+8 minutes before it is given up on. Booking confirmations, cancellations and
+refunds use the same path.
+
 ## Scripts
 
 | Command | What it does |

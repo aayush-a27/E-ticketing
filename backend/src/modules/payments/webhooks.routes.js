@@ -27,6 +27,7 @@ webhooksRouter.post(
     const result = await handleWebhook({
       rawBody: req.body,
       signature,
+      eventId: req.get('x-razorpay-event-id') || undefined,
       provider: 'razorpay',
     });
 

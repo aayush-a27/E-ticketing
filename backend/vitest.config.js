@@ -21,6 +21,9 @@ export default defineConfig({
       BCRYPT_ROUNDS: '10',
       LOG_LEVEL: 'silent',
       NOTIFICATION_TRANSPORT: 'noop',
+      // Tests drive delivery explicitly; a background send after a test has
+      // cleaned up would write into the next test's database.
+      NOTIFICATION_DELIVER_IMMEDIATELY: 'false',
       TICKET_TOKEN_SECRET: 'test-ticket-secret-that-is-long-enough-to-pass',
       PAYMENT_PROVIDER: 'memory',
       MEDIA_PROVIDER: 'memory',

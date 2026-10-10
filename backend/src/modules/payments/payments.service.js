@@ -175,6 +175,27 @@ export async function verifyPayment(user, bookingId, { orderId, paymentId, signa
  * confirmed over whoever has the seats now — it becomes unfulfillable and the
  * money is queued for return.
  */
+/**
+ * Captures a payment the gateway reports as only authorized. A no-op for one
+ * already captured, and for a payment we have no gateway id for yet.
+ */
+async function ensureCaptured(payment) {
+  if (!payment?.providerPaymentId) return;
+  const provider = getPaymentProvider();
+  const remote = await provider.fetchPayment(payment.providerPaymentId);
+  if (remote?.status !== 'authorized') return;
+
+  await provider.capture({
+    paymentId: payment.providerPaymentId,
+    amountPaise: payment.amountPaise,
+    currency: payment.currency,
+  });
+  logger.info(
+    { paymentId: String(payment._id), providerPaymentId: payment.providerPaymentId },
+    'Captured an authorized payment',
+  );
+}
+
 export async function settleVerifiedPayment({ booking, payment, via, actor = null, req = null }) {
   // The browser callback and the webhook both land here. If the first already
   // found the seats gone and queued the refund, the second must not queue
@@ -183,6 +204,12 @@ export async function settleVerifiedPayment({ booking, payment, via, actor = nul
   if (current?.status === BOOKING_STATUS.UNFULFILLABLE) {
     return { booking: current, outcome: 'unfulfillable' };
   }
+
+  // Money is only ours once captured. Done before confirming, so a ticket is
+  // never issued for a payment that could still be handed back — and done even
+  // when the seats turn out to be gone, so the refund below has a captured
+  // payment to refund.
+  await ensureCaptured(payment);
 
   try {
     const { booking: confirmed, alreadyConfirmed } = await confirmBooking({
@@ -250,7 +277,7 @@ export async function settleVerifiedPayment({ booking, payment, via, actor = nul
  * event id is stored under a unique index before any work happens, and the
  * outcome converges on settleVerifiedPayment, which is idempotent.
  */
-export async function handleWebhook({ rawBody, signature, provider: providerName }) {
+export async function handleWebhook({ rawBody, signature, eventId: headerEventId, provider: providerName }) {
   const provider = getPaymentProvider();
 
   if (!provider.verifyWebhookSignature({ rawBody, signature })) {
@@ -265,11 +292,20 @@ export async function handleWebhook({ rawBody, signature, provider: providerName
     throw ApiError.badRequest('Webhook body is not valid JSON');
   }
 
-  const eventId =
-    event.id ??
-    event.payload?.payment?.entity?.id ??
-    crypto.createHash('sha256').update(rawBody).digest('hex');
   const eventType = event.event ?? 'unknown';
+  /**
+   * Razorpay identifies each delivery in the x-razorpay-event-id header; its
+   * body carries no id of its own. Falling back to the payment's id made the
+   * authorized and captured events for one payment look like the same event,
+   * so the second was dropped as a duplicate. Without the header, the event
+   * type is part of the key for the same reason.
+   */
+  const paymentEntityId = event.payload?.payment?.entity?.id;
+  const eventId =
+    headerEventId ??
+    event.id ??
+    (paymentEntityId ? `${eventType}:${paymentEntityId}` : null) ??
+    crypto.createHash('sha256').update(rawBody).digest('hex');
   const payloadHash = crypto.createHash('sha256').update(rawBody).digest('hex');
 
   // Wins or loses the race here, before anything is acted on.

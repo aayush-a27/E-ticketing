@@ -18,6 +18,8 @@ const MyBookingsPage = lazy(() => import('../pages/MyBookingsPage.jsx'));
 const ProfilePage = lazy(() => import('../pages/ProfilePage.jsx'));
 const PartnerPage = lazy(() => import('../pages/PartnerPage.jsx'));
 const LoginPage = lazy(() => import('../pages/LoginPage.jsx'));
+const ForgotPasswordPage = lazy(() => import('../pages/ForgotPasswordPage.jsx'));
+const ResetPasswordPage = lazy(() => import('../pages/ResetPasswordPage.jsx'));
 const RegisterPage = lazy(() => import('../pages/RegisterPage.jsx'));
 const NotFoundPage = lazy(() => import('../pages/NotFoundPage.jsx'));
 
@@ -34,6 +36,9 @@ export const router = createBrowserRouter([
       { path: '/shows/:showId/seats', element: <SeatSelectionPage /> },
       { path: '/login', element: <LoginPage /> },
       { path: '/register', element: <RegisterPage /> },
+      { path: '/forgot-password', element: <ForgotPasswordPage /> },
+      // The address the reset email links to: APP_PUBLIC_URL/reset-password.
+      { path: '/reset-password', element: <ResetPasswordPage /> },
 
       {
         element: <ProtectedRoute />,

@@ -112,15 +112,28 @@ export async function uploadToProvider({ upload, file, onProgress, signal }) {
   form.append('allowed_formats', upload.allowed_formats);
   form.append('signature', upload.signature);
 
-  const response = await axios.post(upload.uploadUrl, form, {
-    signal,
-    // No withCredentials: this request must not carry our session cookie.
-    withCredentials: false,
-    onUploadProgress: (event) => {
-      if (!onProgress || !event.total) return;
-      onProgress(Math.round((event.loaded / event.total) * 100));
-    },
-  });
+  let response;
+  try {
+    response = await axios.post(upload.uploadUrl, form, {
+      signal,
+      // No withCredentials: this request must not carry our session cookie.
+      withCredentials: false,
+      onUploadProgress: (event) => {
+        if (!onProgress || !event.total) return;
+        onProgress(Math.round((event.loaded / event.total) * 100));
+      },
+    });
+  } catch (error) {
+    if (axios.isCancel(error)) throw error;
+    // Cloudinary explains a refusal in error.message; axios on its own would
+    // only say "Request failed with status code 400".
+    const reason = error?.response?.data?.error?.message;
+    throw new Error(
+      reason
+        ? `Image storage refused the file: ${reason}`
+        : 'Could not reach image storage. Check your connection and try again.',
+    );
+  }
 
   return {
     publicId: response.data?.public_id,

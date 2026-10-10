@@ -26,6 +26,12 @@ const notificationSchema = new mongoose.Schema(
     lastAttemptAt: { type: Date },
     sentAt: { type: Date },
     lastError: { type: String },
+    /**
+     * While set and in the future, nobody else may send this notification:
+     * the immediate send and the outbox sweep can both reach the same one.
+     * After a failure it also holds the next retry back for a while.
+     */
+    lockedUntil: { type: Date, default: null },
   },
   { timestamps: true },
 );

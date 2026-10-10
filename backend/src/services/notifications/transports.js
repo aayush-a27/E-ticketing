@@ -1,3 +1,5 @@
+import nodemailer from 'nodemailer';
+import { env } from '../../config/env.js';
 import { logger } from '../../utils/logger.js';
 
 /**
@@ -29,9 +31,52 @@ export const noopTransport = {
   async send() {},
 };
 
+/**
+ * Real email through any SMTP account. Free options that work:
+ *
+ *   Gmail   smtp.gmail.com:587, your address, an app password
+ *           (Google account > Security > App passwords; needs 2-step sign-in)
+ *   Brevo   smtp-relay.brevo.com:587, the SMTP login and key from the
+ *           dashboard; 300 emails a day on the free plan
+ *
+ * Plain-text messages, which every client renders and spam filters trust.
+ */
+export function createSmtpTransport({ host, port, secure, user, pass, from, name = 'smtp', tls }) {
+  let client = null;
+  return {
+    name,
+    async send(notification) {
+      client ??= nodemailer.createTransport({
+        host,
+        port,
+        secure,
+        auth: user ? { user, pass } : undefined,
+        ...(tls ? { tls } : {}),
+      });
+
+      await client.sendMail({
+        from,
+        to: notification.to,
+        subject: notification.subject,
+        text: notification.body,
+      });
+    },
+  };
+}
+
+export const smtpTransport = createSmtpTransport({
+  host: env.SMTP_HOST,
+  port: env.SMTP_PORT,
+  secure: env.SMTP_SECURE,
+  user: env.SMTP_USER,
+  pass: env.SMTP_PASS,
+  from: env.SMTP_FROM,
+});
+
 const registry = new Map([
   [consoleTransport.name, consoleTransport],
   [noopTransport.name, noopTransport],
+  [smtpTransport.name, smtpTransport],
 ]);
 
 export function getTransport(name) {

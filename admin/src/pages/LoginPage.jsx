@@ -144,6 +144,20 @@ export default function LoginPage() {
             </form>
           </div>
 
+          <p className="mt-4 text-center text-sm text-ink-300">
+            Forgot your password?{' '}
+            {import.meta.env.VITE_CUSTOMER_URL ? (
+              <a
+                href={`${import.meta.env.VITE_CUSTOMER_URL}/forgot-password`}
+                className="text-brand-on-dark hover:underline"
+              >
+                Reset it here
+              </a>
+            ) : (
+              <span>Reset it from the customer site&rsquo;s sign-in page.</span>
+            )}
+          </p>
+
           <p className="mt-5 text-center text-xs leading-relaxed text-ink-400">
             Your session is held in a secure cookie this page cannot read.
             <br />

@@ -113,7 +113,9 @@ export default function CheckoutPage() {
           currency: order.order.currency,
           name: 'CineReserve',
           description: `${current.movie.title} · ${current.seats.length} seat(s)`,
-          image: '/ticket.svg',
+          // Absolute: the checkout window is Razorpay's page, where a
+          // relative path would point at their site, not ours.
+          image: `${window.location.origin}/ticket.svg`,
           prefill: { name: user?.name, email: user?.email, contact: user?.phone ?? undefined },
           theme: { color: '#D4A24C' },
 
