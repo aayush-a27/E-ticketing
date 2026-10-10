@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useForm } from 'react-hook-form';
-import { KeyRound, LogOut, Ticket, User } from 'lucide-react';
+import { Building2, KeyRound, LogOut, Ticket, User } from 'lucide-react';
 import { useAuth } from '../context/AuthContext.jsx';
 import { useCity } from '../context/CityContext.jsx';
 import { useToast } from '../context/ToastContext.jsx';
@@ -95,6 +95,10 @@ export default function ProfilePage() {
         <Button as={Link} to="/my-bookings" variant="secondary">
           <Ticket className="size-4" aria-hidden="true" />
           My bookings
+        </Button>
+        <Button as={Link} to="/partner" variant="secondary">
+          <Building2 className="size-4" aria-hidden="true" />
+          Run your venue here
         </Button>
         <Button variant="ghost" onClick={() => setSignOutOpen(true)}>
           <LogOut className="size-4" aria-hidden="true" />

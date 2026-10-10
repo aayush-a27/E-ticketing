@@ -40,14 +40,20 @@ export function AuthProvider({ children }) {
   const refresh = useCallback(async ({ signal } = {}) => {
     try {
       const payload = await authService.fetchCurrentUser({ signal });
-      if (mountedRef.current) {
+      if (mountedRef.current && !signal?.aborted) {
         setUser(payload.user);
         setShowRunner(payload.showRunner ?? null);
       }
       return payload.user;
     } catch {
-      // A 401 here just means "not signed in".
-      if (mountedRef.current) {
+      /**
+       * A 401 here means "not signed in". An aborted request means nothing at
+       * all and must not touch state: React mounts this provider twice in
+       * development, and the first check's cancellation used to land on the
+       * second mount, briefly signing the operator out — which redirected
+       * through /login and dropped the page's query string on the way back.
+       */
+      if (mountedRef.current && !signal?.aborted) {
         setUser(null);
         setShowRunner(null);
       }
@@ -60,7 +66,7 @@ export function AuthProvider({ children }) {
     const controller = new AbortController();
 
     refresh({ signal: controller.signal }).finally(() => {
-      if (mountedRef.current) setChecking(false);
+      if (mountedRef.current && !controller.signal.aborted) setChecking(false);
     });
 
     return () => {

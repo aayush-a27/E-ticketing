@@ -160,6 +160,21 @@ export default function TicketPage() {
                   ? 'This ticket has already been scanned.'
                   : 'Show this code at the entrance.'}
               </p>
+
+              {/*
+                The same token the QR encodes, for when a camera cannot read
+                a cracked screen. It exposes nothing the QR does not already.
+              */}
+              {ticket.token && !ticket.admittedAt && (
+                <details className="mt-3 w-full max-w-xs text-center">
+                  <summary className="cursor-pointer text-xs text-ivory-muted underline-offset-2 hover:underline">
+                    Code will not scan?
+                  </summary>
+                  <p className="mt-2 break-all rounded-lg bg-charcoal-soft px-3 py-2 text-left font-mono text-[10px] leading-relaxed text-ivory-dim select-all">
+                    {ticket.token}
+                  </p>
+                </details>
+              )}
             </div>
           </div>
         </article>

@@ -41,9 +41,19 @@ export function PublicOnlyRoute({ children }) {
   if (checking) return <FullPageLoader />;
 
   if (isAuthenticated && canUseConsole) {
-    const intended = location.state?.from?.pathname;
-    return <Navigate to={intended && intended !== '/login' ? intended : '/'} replace />;
+    return <Navigate to={intendedDestination(location)} replace />;
   }
 
   return children;
+}
+
+/**
+ * Where to go after signing in: the page the operator was heading for, with
+ * its filters. Keeping only the path would drop `?status=failed` from a link
+ * someone was sent, which is exactly the view they needed.
+ */
+export function intendedDestination(location) {
+  const from = location.state?.from;
+  if (!from?.pathname || from.pathname === '/login') return '/';
+  return `${from.pathname}${from.search ?? ''}${from.hash ?? ''}`;
 }

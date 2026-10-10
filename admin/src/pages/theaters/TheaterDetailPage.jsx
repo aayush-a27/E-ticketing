@@ -39,7 +39,8 @@ import {
 } from '../../components/ui/Layout.jsx';
 import { Badge, StatusBadge } from '../../components/ui/Badge.jsx';
 import { ConfirmDialog, Dialog } from '../../components/ui/Dialog.jsx';
-import { Checkbox, TextField } from '../../components/ui/Field.jsx';
+import { Checkbox, Select, TextField } from '../../components/ui/Field.jsx';
+import { fetchShowRunners } from '../../services/platformService.js';
 import { EmptyState, ErrorState, LoadingBlock } from '../../components/ui/States.jsx';
 import { count, dateTime, pluralize } from '../../utils/format.js';
 import { SCREEN_FORMATS } from '../../utils/constants.js';
@@ -500,9 +501,8 @@ function ImagesCard({ theater, namespace, toast, onChange }) {
  * Who may operate this venue.
  *
  * Assignment is the second of the two grants a show runner needs — approval
- * alone gives them nothing. The server only accepts a user whose show-runner
- * profile is active, so assigning a suspended runner is refused here rather
- * than handing out access that gate 3 then silently blocks.
+ * alone gives them nothing. The picker offers active show runners only; the
+ * server checks again, so a runner suspended a second ago is still refused.
  */
 function ManagersCard({ theater, toast, onChange }) {
   const [assigning, setAssigning] = useState(false);
@@ -512,24 +512,35 @@ function ManagersCard({ theater, toast, onChange }) {
   const [error, setError] = useState(null);
   const [removingId, setRemovingId] = useState(null);
 
+  // Every runner, so a manager who has since been suspended still has a name.
+  const runners = useResource(
+    useCallback(({ signal }) => fetchShowRunners({ limit: 100 }, { signal }), []),
+    [],
+  );
+
+  const byUser = new Map(
+    (runners.data?.items ?? []).map((runner) => [String(runner.userId?._id), runner]),
+  );
+  const managerIds = (theater.managers ?? []).map(String);
+
+  const candidates = (runners.data?.items ?? []).filter(
+    (runner) => runner.status === 'active' && !managerIds.includes(String(runner.userId?._id)),
+  );
+
   const submit = async () => {
     setError(null);
-    if (!/^[0-9a-fA-F]{24}$/.test(userId.trim())) {
-      return setError('Paste the show runner’s account id (24 hex characters).');
-    }
+    if (!userId) return setError('Pick a show runner.');
     if (reason.trim().length < 5) return setError('Record why, in at least five characters.');
 
     setBusy(true);
     try {
-      const updated = await assignManager(theater._id, {
-        userId: userId.trim(),
-        reason: reason.trim(),
-      });
+      const updated = await assignManager(theater._id, { userId, reason: reason.trim() });
       onChange(updated);
       toast.success('Venue assigned.');
       setUserId('');
       setReason('');
       setAssigning(false);
+      runners.refetch();
     } catch (caught) {
       setError(caught?.message ?? 'Could not assign this venue.');
     } finally {
@@ -548,11 +559,13 @@ function ManagersCard({ theater, toast, onChange }) {
     }
   };
 
+  const removing = removingId ? byUser.get(String(removingId)) : null;
+
   return (
     <Card>
       <CardHeader
-        title={`Managers · ${count(theater.managers?.length ?? 0)}`}
-        description="Only an active show runner can be assigned."
+        title={`Managers · ${count(managerIds.length)}`}
+        description="Show runners who may operate this venue."
         actions={
           <Button variant="secondary" size="sm" onClick={() => setAssigning(true)}>
             <UserPlus className="size-3.5" aria-hidden="true" />
@@ -561,27 +574,38 @@ function ManagersCard({ theater, toast, onChange }) {
         }
       />
       <div className="p-5">
-        {(theater.managers?.length ?? 0) === 0 ? (
+        {managerIds.length === 0 ? (
           <p className="text-sm text-ink-500">
             Nobody manages this venue yet, so no show runner can schedule in it.
           </p>
         ) : (
           <ul className="space-y-2">
-            {theater.managers.map((managerId) => (
-              <li
-                key={managerId}
-                className="flex items-center justify-between gap-3 rounded-lg border border-ink-200 px-3 py-2"
-              >
-                <code className="truncate font-mono text-xs text-ink-700">{managerId}</code>
-                <IconButton
-                  variant="danger-quiet"
-                  size="xs"
-                  icon={UserMinus}
-                  label="Remove this manager"
-                  onClick={() => setRemovingId(managerId)}
-                />
-              </li>
-            ))}
+            {managerIds.map((managerId) => {
+              const runner = byUser.get(managerId);
+              return (
+                <li
+                  key={managerId}
+                  className="flex items-center justify-between gap-3 rounded-lg border border-ink-200 px-3 py-2"
+                >
+                  <div className="min-w-0">
+                    <p className="truncate text-sm text-ink-900">
+                      {runner?.businessName ?? 'Unknown account'}
+                    </p>
+                    <p className="truncate text-xs text-ink-500">
+                      {runner?.userId?.email ?? managerId}
+                      {runner && runner.status !== 'active' ? ` · ${runner.status}` : ''}
+                    </p>
+                  </div>
+                  <IconButton
+                    variant="danger-quiet"
+                    size="xs"
+                    icon={UserMinus}
+                    label={`Remove ${runner?.businessName ?? 'this manager'}`}
+                    onClick={() => setRemovingId(managerId)}
+                  />
+                </li>
+              );
+            })}
           </ul>
         )}
       </div>
@@ -590,7 +614,7 @@ function ManagersCard({ theater, toast, onChange }) {
         open={assigning}
         onClose={busy ? undefined : () => setAssigning(false)}
         title="Assign this venue"
-        description="The show runner gains access to this theater only. Their account id is on the Show runners page."
+        description="The show runner gains access to this theater only."
         size="sm"
         footer={
           <>
@@ -609,13 +633,21 @@ function ManagersCard({ theater, toast, onChange }) {
               {error}
             </p>
           )}
-          <TextField
-            label="Show runner account id"
+          <Select
+            label="Show runner"
             required
             value={userId}
             onChange={(event) => setUserId(event.target.value)}
-            placeholder="6ac8fa065a5126eb3fcbaac6"
-            className="font-mono"
+            placeholder={runners.loading ? 'Loading…' : 'Pick a show runner'}
+            options={candidates.map((runner) => ({
+              value: String(runner.userId?._id),
+              label: `${runner.businessName} · ${runner.userId?.email ?? ''}`,
+            }))}
+            hint={
+              !runners.loading && candidates.length === 0
+                ? 'No active show runner is available. Approve an application first.'
+                : undefined
+            }
           />
           <TextField
             label="Reason"
@@ -633,7 +665,7 @@ function ManagersCard({ theater, toast, onChange }) {
         onClose={() => setRemovingId(null)}
         onConfirm={doRemove}
         title="Remove this assignment?"
-        description="They lose access to this venue immediately. Shows they already scheduled are unaffected."
+        description={`${removing?.businessName ?? 'They'} lose access to this venue immediately. Shows already scheduled are unaffected.`}
         confirmLabel="Remove"
       />
     </Card>

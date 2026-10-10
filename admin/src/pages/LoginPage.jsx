@@ -6,6 +6,7 @@ import { useAuth } from '../context/AuthContext.jsx';
 import { Button } from '../components/ui/Button.jsx';
 import { TextField } from '../components/ui/Field.jsx';
 import { ERROR_CODES } from '../services/api.js';
+import { intendedDestination } from '../routes/ProtectedRoute.jsx';
 
 /**
  * Sign-in.
@@ -39,8 +40,7 @@ export default function LoginPage() {
         return;
       }
 
-      const intended = location.state?.from?.pathname;
-      navigate(intended && intended !== '/login' ? intended : '/', { replace: true });
+      navigate(intendedDestination(location), { replace: true });
     } catch (error) {
       // Field-level messages where the server gave them, a form-level one
       // otherwise. Invalid credentials deliberately do not say which half was

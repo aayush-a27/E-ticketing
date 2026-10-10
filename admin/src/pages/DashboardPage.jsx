@@ -191,7 +191,7 @@ export default function DashboardPage() {
         )}
       </section>
 
-      <div className="mt-6 grid gap-5 xl:grid-cols-[1.618fr_1fr]">
+      <div className="mt-6 grid items-start gap-5 xl:grid-cols-[1.618fr_1fr]">
         <TrendCard data={data} loading={loading} />
         <BreakdownCard data={data} loading={loading} isSuperAdmin={isSuperAdmin} />
       </div>

@@ -16,6 +16,7 @@ const CheckoutPage = lazy(() => import('../pages/CheckoutPage.jsx'));
 const TicketPage = lazy(() => import('../pages/TicketPage.jsx'));
 const MyBookingsPage = lazy(() => import('../pages/MyBookingsPage.jsx'));
 const ProfilePage = lazy(() => import('../pages/ProfilePage.jsx'));
+const PartnerPage = lazy(() => import('../pages/PartnerPage.jsx'));
 const LoginPage = lazy(() => import('../pages/LoginPage.jsx'));
 const RegisterPage = lazy(() => import('../pages/RegisterPage.jsx'));
 const NotFoundPage = lazy(() => import('../pages/NotFoundPage.jsx'));
@@ -41,6 +42,7 @@ export const router = createBrowserRouter([
           { path: '/bookings/:bookingId/ticket', element: <TicketPage /> },
           { path: '/my-bookings', element: <MyBookingsPage /> },
           { path: '/profile', element: <ProfilePage /> },
+          { path: '/partner', element: <PartnerPage /> },
         ],
       },
 

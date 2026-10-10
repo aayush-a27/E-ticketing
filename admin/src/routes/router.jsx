@@ -21,6 +21,19 @@ const ScreenDetailPage = lazy(() => import('../pages/theaters/ScreenDetailPage.j
 const ShowsPage = lazy(() => import('../pages/shows/ShowsPage.jsx'));
 const ShowFormPage = lazy(() => import('../pages/shows/ShowFormPage.jsx'));
 const ShowDetailPage = lazy(() => import('../pages/shows/ShowDetailPage.jsx'));
+const BookingsPage = lazy(() => import('../pages/bookings/BookingsPage.jsx'));
+const BookingDetailPage = lazy(() => import('../pages/bookings/BookingDetailPage.jsx'));
+const FinancePage = lazy(() => import('../pages/finance/FinancePage.jsx'));
+const RefundsPage = lazy(() => import('../pages/finance/RefundsPage.jsx'));
+const GatePage = lazy(() => import('../pages/gate/GatePage.jsx'));
+const ApplicationsPage = lazy(() => import('../pages/platform/ApplicationsPage.jsx'));
+const ApplicationDetailPage = lazy(() => import('../pages/platform/ApplicationDetailPage.jsx'));
+const ShowRunnersPage = lazy(() => import('../pages/platform/ShowRunnersPage.jsx'));
+const VenueRequestsPage = lazy(() => import('../pages/platform/VenueRequestsPage.jsx'));
+const UsersPage = lazy(() => import('../pages/platform/UsersPage.jsx'));
+const UserDetailPage = lazy(() => import('../pages/platform/UserDetailPage.jsx'));
+const AuditLogPage = lazy(() => import('../pages/platform/AuditLogPage.jsx'));
+const SettingsPage = lazy(() => import('../pages/platform/SettingsPage.jsx'));
 const NoAccessPage = lazy(() => import('../pages/NoAccessPage.jsx'));
 const NotFoundPage = lazy(() => import('../pages/NotFoundPage.jsx'));
 
@@ -201,6 +214,135 @@ export const router = createBrowserRouter([
           <Page>
             <ShowFormPage />
           </Page>
+        ),
+      },
+
+      /**
+       * Operations, for both roles. Every one of these reads data the server
+       * has already scoped: a show runner's bookings, money and refunds are
+       * their venues' only, and the gate admits only at venues they manage.
+       */
+      {
+        path: 'bookings',
+        element: (
+          <Page>
+            <BookingsPage />
+          </Page>
+        ),
+      },
+      {
+        path: 'bookings/:bookingId',
+        element: (
+          <Page>
+            <BookingDetailPage />
+          </Page>
+        ),
+      },
+      {
+        path: 'finance',
+        element: (
+          <Page>
+            <FinancePage />
+          </Page>
+        ),
+      },
+      {
+        path: 'refunds',
+        element: (
+          <Page>
+            <RefundsPage />
+          </Page>
+        ),
+      },
+      {
+        path: 'gate',
+        element: (
+          <Page>
+            <GatePage />
+          </Page>
+        ),
+      },
+      {
+        path: 'venue-requests',
+        element: (
+          <Page>
+            <VenueRequestsPage />
+          </Page>
+        ),
+      },
+
+      /**
+       * Platform administration. Super admin only, matching the API, which
+       * refuses everyone else regardless of what is rendered here.
+       */
+      {
+        path: 'applications',
+        element: (
+          <ProtectedRoute roles={[ROLES.SUPER_ADMIN]}>
+            <Page>
+              <ApplicationsPage />
+            </Page>
+          </ProtectedRoute>
+        ),
+      },
+      {
+        path: 'applications/:id',
+        element: (
+          <ProtectedRoute roles={[ROLES.SUPER_ADMIN]}>
+            <Page>
+              <ApplicationDetailPage />
+            </Page>
+          </ProtectedRoute>
+        ),
+      },
+      {
+        path: 'show-runners',
+        element: (
+          <ProtectedRoute roles={[ROLES.SUPER_ADMIN]}>
+            <Page>
+              <ShowRunnersPage />
+            </Page>
+          </ProtectedRoute>
+        ),
+      },
+      {
+        path: 'users',
+        element: (
+          <ProtectedRoute roles={[ROLES.SUPER_ADMIN]}>
+            <Page>
+              <UsersPage />
+            </Page>
+          </ProtectedRoute>
+        ),
+      },
+      {
+        path: 'users/:id',
+        element: (
+          <ProtectedRoute roles={[ROLES.SUPER_ADMIN]}>
+            <Page>
+              <UserDetailPage />
+            </Page>
+          </ProtectedRoute>
+        ),
+      },
+      {
+        path: 'audit',
+        element: (
+          <ProtectedRoute roles={[ROLES.SUPER_ADMIN]}>
+            <Page>
+              <AuditLogPage />
+            </Page>
+          </ProtectedRoute>
+        ),
+      },
+      {
+        path: 'settings',
+        element: (
+          <ProtectedRoute roles={[ROLES.SUPER_ADMIN]}>
+            <Page>
+              <SettingsPage />
+            </Page>
+          </ProtectedRoute>
         ),
       },
     ],

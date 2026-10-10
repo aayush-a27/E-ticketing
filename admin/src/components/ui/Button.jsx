@@ -17,6 +17,19 @@ const SIZES = {
 };
 
 /**
+ * Square, padding-free sizes for icon-only buttons. Kept separate rather than
+ * overriding the padding above with `px-0`: two padding utilities on one
+ * element are resolved by stylesheet order, not class order, so the override
+ * silently lost and squeezed every icon to a few pixels.
+ */
+const SQUARE_SIZES = {
+  xs: 'size-7',
+  sm: 'size-8.5',
+  md: 'size-10',
+  lg: 'size-11',
+};
+
+/**
  * Every button in the console.
  *
  * `loading` also disables, so a submit cannot be fired twice while a request
@@ -33,6 +46,7 @@ export function Button({
   className = '',
   type = 'button',
   as: Component = 'button',
+  square = false,
   ...props
 }) {
   const isDisabled = disabled || loading;
@@ -47,7 +61,7 @@ export function Button({
         'inline-flex shrink-0 items-center justify-center rounded-lg transition-colors duration-150',
         'disabled:cursor-not-allowed disabled:opacity-55',
         VARIANTS[variant] ?? VARIANTS.primary,
-        SIZES[size] ?? SIZES.md,
+        square ? (SQUARE_SIZES[size] ?? SQUARE_SIZES.md) : (SIZES[size] ?? SIZES.md),
         className,
       ].join(' ')}
       {...props}
@@ -60,18 +74,11 @@ export function Button({
 
 /** A square button that holds only an icon, so it still needs a label. */
 export function IconButton({ label, icon: Icon, size = 'md', className = '', ...props }) {
-  const box = { xs: 'size-7', sm: 'size-8.5', md: 'size-10', lg: 'size-11' }[size] ?? 'size-10';
   const glyph = { xs: 'size-3.5', sm: 'size-4', md: 'size-4', lg: 'size-4.5' }[size] ?? 'size-4';
 
   return (
-    <Button
-      size={size}
-      aria-label={label}
-      title={label}
-      className={`px-0 ${box} ${className}`}
-      {...props}
-    >
-      <Icon className={glyph} aria-hidden="true" />
+    <Button size={size} square aria-label={label} title={label} className={className} {...props}>
+      <Icon className={`${glyph} shrink-0`} aria-hidden="true" />
     </Button>
   );
 }

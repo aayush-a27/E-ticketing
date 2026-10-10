@@ -21,11 +21,13 @@ export function AuthProvider({ children }) {
   const refresh = useCallback(async ({ signal } = {}) => {
     try {
       const payload = await authService.fetchCurrentUser({ signal });
-      if (mountedRef.current) setUser(payload.user);
+      if (mountedRef.current && !signal?.aborted) setUser(payload.user);
       return payload.user;
     } catch {
       // A 401 here just means "not signed in".
-      if (mountedRef.current) setUser(null);
+      // An aborted check means nothing. In development React mounts this
+      // twice, and the first check's cancellation must not sign anyone out.
+      if (mountedRef.current && !signal?.aborted) setUser(null);
       return null;
     }
   }, []);
@@ -35,7 +37,7 @@ export function AuthProvider({ children }) {
     const controller = new AbortController();
 
     refresh({ signal: controller.signal }).finally(() => {
-      if (mountedRef.current) setChecking(false);
+      if (mountedRef.current && !controller.signal.aborted) setChecking(false);
     });
 
     return () => {
